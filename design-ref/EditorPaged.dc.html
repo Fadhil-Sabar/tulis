@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Editor per halaman</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+a{color:inherit}
+</style>
+</helmet>
+<div style="width:412px;height:892px;box-sizing:border-box;position:relative;overflow:hidden;background:#E6DDC8;color:#2B2724;font-family:'Patrick Hand',cursive;font-size:18px">
+
+<!-- halaman -->
+<div style="position:absolute;left:16px;top:130px;width:380px;height:537px;box-sizing:border-box;overflow:hidden;background:#FFFDF6;border:2px solid rgba(43,39,36,.55);box-shadow:4px 6px 0 rgba(43,39,36,.14)">
+<svg width="376" height="533" viewBox="0 0 376 533" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="position:absolute;left:0;top:0">
+<path d="M52 156 C120 152 200 158 262 154" stroke="#F5D547" stroke-width="24" opacity=".8"/>
+<path d="M22 66 C50 58 80 70 110 62 C140 54 170 68 200 60 C230 52 250 64 280 58" stroke="#C23B1F" stroke-width="3.2"/>
+<path d="M40 126 C100 120 220 122 276 126 C280 146 280 166 276 186 C220 192 100 190 42 186 C36 166 36 146 40 126 Z" stroke="#C23B1F" stroke-width="2.4"/>
+<path d="M36 262 L36 432 L252 432 M30 272 L36 260 L42 272 M242 426 L254 432 L242 438" stroke="#2B2724" stroke-width="2.4"/>
+<path d="M36 432 C80 424 130 384 190 332 C214 312 236 298 254 292" stroke="#2D5DA8" stroke-width="3.2"/>
+<path d="M120 432 L120 396 M120 396 L36 396" stroke="#2B2724" stroke-width="1.6" stroke-dasharray="5 6"/>
+<path d="M60 482 C100 478 160 484 220 480" stroke="#3E7D4F" stroke-width="3"/>
+</svg>
+<div style="position:absolute;left:22px;top:12px;font-family:'Caveat',cursive;font-weight:700;font-size:42px;line-height:1;color:#2D5DA8">Bab 3 · Gerak lurus</div>
+<div style="position:absolute;left:22px;top:84px;font-family:'Caveat',cursive;font-weight:600;font-size:32px;line-height:1;color:#2B2724">Kecepatan rata-rata:</div>
+<div style="position:absolute;left:84px;top:132px;font-family:'Caveat',cursive;font-weight:700;font-size:46px;line-height:1;color:#2B2724">v = s / t</div>
+<div style="position:absolute;left:22px;top:204px;font-family:'Caveat',cursive;font-weight:600;font-size:30px;line-height:1;color:#2B2724">Grafik jarak terhadap waktu</div>
+<div style="position:absolute;left:12px;top:248px;font-family:'Caveat',cursive;font-weight:600;font-size:28px;line-height:1;color:#2B2724">s</div>
+<div style="position:absolute;left:258px;top:410px;font-family:'Caveat',cursive;font-weight:600;font-size:28px;line-height:1;color:#2B2724">t</div>
+<div style="position:absolute;left:60px;top:446px;font-family:'Caveat',cursive;font-weight:600;font-size:32px;line-height:1;color:#2B2724">3 m / 2 s = 1,5 m/s</div>
+<div style="position:absolute;right:14px;bottom:8px;font-size:15px;color:#5B534A">2</div>
+</div>
+
+<!-- bar atas -->
+<div style="position:absolute;top:44px;left:16px;right:16px;display:flex;align-items:center;justify-content:space-between">
+<div style="display:flex;align-items:center;gap:10px">
+<a href="Main.dc.html" aria-label="Kembali ke beranda" style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:52% 48% 55% 45% / 48% 54% 46% 52%;box-shadow:2px 3px 0 rgba(43,39,36,.2)">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5 C12 8.4 10 10.2 8.2 12.1 C10 13.9 12 15.8 14.6 18.6"/></svg>
+</a>
+<div style="height:48px;box-sizing:border-box;padding:0 18px;display:flex;align-items:center;font-size:20px;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:22px 8px 20px 10px / 10px 20px 8px 22px;box-shadow:2px 3px 0 rgba(43,39,36,.2)">Fisika Bab 3</div>
+</div>
+<div style="height:48px;box-sizing:border-box;padding:0 4px;display:flex;align-items:center;gap:2px;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:20px 8px 22px 10px / 10px 22px 8px 20px;box-shadow:2px 3px 0 rgba(43,39,36,.2)">
+<button aria-label="Urungkan" style="width:44px;height:40px;padding:0;display:flex;align-items:center;justify-content:center;background:transparent;border:0;cursor:pointer">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7.5 L5 11.2 L9.2 14.8 M5.4 11.2 C10 10.6 16 10.6 18.6 14.4 C19.6 15.8 19.4 17.4 19 18.4"/></svg>
+</button>
+<button aria-label="Ulangi" style="width:44px;height:40px;padding:0;display:flex;align-items:center;justify-content:center;background:transparent;border:0;cursor:pointer">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 7.5 L19 11.2 L14.8 14.8 M18.6 11.2 C14 10.6 8 10.6 5.4 14.4 C4.4 15.8 4.6 17.4 5 18.4"/></svg>
+</button>
+</div>
+</div>
+
+<!-- bar halaman -->
+<div style="position:absolute;left:16px;right:16px;bottom:112px;display:flex;align-items:center;justify-content:space-between">
+<div style="height:52px;box-sizing:border-box;padding:0 4px;display:flex;align-items:center;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:22px 8px 20px 10px / 10px 20px 8px 22px;box-shadow:2px 3px 0 rgba(43,39,36,.2)">
+<button aria-label="Halaman sebelumnya" style="width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;background:transparent;border:0;cursor:pointer">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5 C12 8.4 10 10.2 8.2 12.1 C10 13.9 12 15.8 14.6 18.6"/></svg>
+</button>
+<span style="min-width:62px;text-align:center;font-size:21px">2 / 12</span>
+<button aria-label="Halaman berikutnya" style="width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;background:transparent;border:0;cursor:pointer">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 5.5 C12 8.4 14 10.2 15.8 12.1 C14 13.9 12 15.8 9.4 18.6"/></svg>
+</button>
+</div>
+<div style="display:flex;align-items:center;gap:8px">
+<button style="height:52px;box-sizing:border-box;padding:0 16px 0 12px;display:flex;align-items:center;gap:6px;font-size:19px;color:#2B2724;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:10px 20px 8px 22px / 20px 8px 22px 10px;box-shadow:2px 3px 0 rgba(43,39,36,.2);cursor:pointer">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5 C12.2 9 11.8 15 12 19.6 M4.4 12.2 C9 11.8 15 12.3 19.7 11.9"/></svg>
+Halaman
+</button>
+<button aria-label="Hapus halaman ini" style="width:52px;height:52px;padding:0;display:flex;align-items:center;justify-content:center;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:52% 48% 55% 45% / 48% 54% 46% 52%;box-shadow:2px 3px 0 rgba(43,39,36,.2);cursor:pointer">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C23B1F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7 L19 7.2 M9.5 7 C9.4 5.6 10.4 4.6 12 4.6 C13.6 4.6 14.6 5.6 14.5 7 M6.8 7.4 L7.6 19 C7.6 19.6 8.2 20 8.8 20 L15.2 20 C15.8 20 16.4 19.6 16.4 19 L17.2 7.4 M10.4 10.6 L10.6 16.6 M13.6 10.6 L13.4 16.6"/></svg>
+</button>
+</div>
+</div>
+
+<!-- toolbar bawah -->
+<nav aria-label="Alat menulis" style="position:absolute;left:12px;right:12px;bottom:28px;height:76px;box-sizing:border-box;padding:0 4px;display:flex;align-items:center;justify-content:space-around;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:22px 10px 24px 12px / 12px 24px 10px 22px;box-shadow:3px 4px 0 rgba(43,39,36,.25)">
+<button aria-pressed="true" style="position:relative;width:58px;height:62px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:#2B2724;background:#F5D547;border:2.5px solid #2B2724;border-radius:16px 8px 14px 8px / 8px 14px 8px 16px">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 19.6 L5.4 15.2 L15.6 5 C16.6 4 18 4 19 5 C20 6 20 7.4 19 8.4 L8.8 18.6 Z M13.8 6.8 L17.2 10.2"/></svg>
+Pena
+<span style="position:absolute;right:5px;top:5px;width:11px;height:11px;border-radius:50%;background:#2D5DA8;border:2px solid #2B2724"></span>
+</button>
+<button aria-pressed="false" style="width:56px;height:62px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:#2B2724;background:transparent;border:0">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 19.4 L9.6 18.8 L8.6 16.6 Z M9.4 16.4 L17.4 8.4 L15.4 6.4 L7.4 14.4 Z M15.8 6 L17.2 4.6 C18 3.8 19.2 3.8 20 4.6 C20.8 5.4 20.8 6.6 20 7.4 L18.4 9"/></svg>
+Spidol
+</button>
+<button aria-pressed="false" style="width:56px;height:62px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:#2B2724;background:transparent;border:0">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.4 13.6 L13.4 6.6 L18 11.2 L11 18.2 L7 18.4 Z M4.5 20.6 L10.5 20.6 M13.4 6.6 L15.4 4.8"/></svg>
+Stabilo
+</button>
+<button aria-pressed="false" style="width:56px;height:62px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:#2B2724;background:transparent;border:0">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 15.4 L13.6 6.6 C14.4 5.8 15.8 5.8 16.6 6.6 L19 9 C19.8 9.8 19.8 11.2 19 12 L13 18.6 L8.4 18.6 Z M9.6 11 L15 16.4 M8.4 20.4 L20 20.4"/></svg>
+Hapus
+</button>
+<button aria-pressed="false" style="width:56px;height:62px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:#2B2724;background:transparent;border:0">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 6.2 C10 5.8 14.2 6.2 18.6 5.9 M12.1 6 C11.9 10.4 12.2 14.6 12 19 M9.4 19 L14.6 19.1"/></svg>
+Teks
+</button>
+<button aria-pressed="false" style="width:56px;height:62px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:#2B2724;background:transparent;border:0">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.8 L12 20.2 M3.8 12 L20.2 12 M9 6.8 L12 3.8 L15 6.8 M9 17.2 L12 20.2 L15 17.2 M6.8 9 L3.8 12 L6.8 15 M17.2 9 L20.2 12 L17.2 15"/></svg>
+Geser
+</button>
+</nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":892}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

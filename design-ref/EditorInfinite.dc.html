@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Editor kanvas tak terbatas</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+a{color:inherit}
+</style>
+</helmet>
+<div style="width:412px;height:892px;box-sizing:border-box;position:relative;overflow:hidden;background-color:#FBF8EF;background-image:radial-gradient(rgba(43,39,36,.18) 1.4px,transparent 1.6px);background-size:28px 28px;background-position:10px 14px;color:#2B2724;font-family:'Patrick Hand',cursive;font-size:18px">
+
+<!-- isi kanvas -->
+<svg width="412" height="892" viewBox="0 0 412 892" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="position:absolute;left:0;top:0">
+<path d="M34 392 C110 388 200 394 300 390" stroke="#F5D547" stroke-width="16" opacity=".8"/>
+<path d="M30 226 C34 214 80 210 130 212 C150 212 160 214 162 226 C164 240 163 262 160 280 C120 286 70 285 34 282 C28 266 28 244 30 226 Z" stroke="#2B2724" stroke-width="2.6"/>
+<path d="M252 226 C290 222 340 224 380 226 C382 244 381 262 380 280 C340 286 292 285 254 282 C250 264 250 244 252 226 Z" stroke="#2B2724" stroke-width="2.6"/>
+<path d="M166 254 C190 246 220 252 246 254 M236 244 L247 254 L235 264" stroke="#2D5DA8" stroke-width="2.6"/>
+<path d="M30 160 C60 152 90 164 120 156 C150 148 170 160 196 154" stroke="#C23B1F" stroke-width="3.2"/>
+<path d="M296 440 C316 426 350 432 352 458 C354 482 322 490 304 478 C290 468 288 450 296 440 Z" stroke="#C23B1F" stroke-width="2.6"/>
+<path d="M300 560 C340 556 400 558 440 560 C442 590 442 620 440 650 C400 654 350 652 300 650 C296 620 296 590 300 560 Z" stroke="#2B2724" stroke-width="2.6"/>
+<path d="M-20 700 C20 692 60 704 100 698" stroke="#3E7D4F" stroke-width="3"/>
+</svg>
+<div style="position:absolute;left:30px;top:112px;font-family:'Caveat',cursive;font-weight:700;font-size:46px;line-height:1;color:#2D5DA8;transform:rotate(-2deg)">Ide fitur</div>
+<div style="position:absolute;left:62px;top:236px;font-family:'Caveat',cursive;font-weight:600;font-size:34px;line-height:1;color:#2B2724">Pena</div>
+<div style="position:absolute;left:290px;top:236px;font-family:'Caveat',cursive;font-weight:600;font-size:34px;line-height:1;color:#2B2724">Simpan</div>
+<div style="position:absolute;left:308px;top:502px;font-family:'Caveat',cursive;font-weight:600;font-size:30px;line-height:1;color:#C23B1F;transform:rotate(3deg)">cek ini!</div>
+
+<!-- blok teks terpilih -->
+<div style="position:absolute;left:34px;top:356px;width:300px;box-sizing:border-box;padding:8px 10px;border:1.5px dashed #2D5DA8;font-size:21px;line-height:1.3;color:#2B2724">
+Yang perlu dites:<br>latensi stylus, zoom 10x
+<span style="position:absolute;left:-6px;top:-6px;width:10px;height:10px;background:#2D5DA8"></span>
+<span style="position:absolute;right:-6px;top:-6px;width:10px;height:10px;background:#2D5DA8"></span>
+<span style="position:absolute;left:-6px;bottom:-6px;width:10px;height:10px;background:#2D5DA8"></span>
+<span style="position:absolute;right:-6px;bottom:-6px;width:10px;height:10px;background:#2D5DA8"></span>
+</div>
+
+<!-- bar atas -->
+<div style="position:absolute;top:44px;left:16px;right:16px;display:flex;align-items:center;justify-content:space-between">
+<div style="display:flex;align-items:center;gap:10px">
+<a href="Main.dc.html" aria-label="Kembali ke beranda" style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:52% 48% 55% 45% / 48% 54% 46% 52%;box-shadow:2px 3px 0 rgba(43,39,36,.2)">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5 C12 8.4 10 10.2 8.2 12.1 C10 13.9 12 15.8 14.6 18.6"/></svg>
+</a>
+<div style="height:48px;box-sizing:border-box;padding:0 18px;display:flex;align-items:center;font-size:20px;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:22px 8px 20px 10px / 10px 20px 8px 22px;box-shadow:2px 3px 0 rgba(43,39,36,.2)">Sketsa UI aplikasi</div>
+</div>
+<div style="height:48px;box-sizing:border-box;padding:0 4px;display:flex;align-items:center;gap:2px;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:20px 8px 22px 10px / 10px 22px 8px 20px;box-shadow:2px 3px 0 rgba(43,39,36,.2)">
+<button aria-label="Urungkan" style="width:44px;height:40px;padding:0;display:flex;align-items:center;justify-content:center;background:transparent;border:0;cursor:pointer">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7.5 L5 11.2 L9.2 14.8 M5.4 11.2 C10 10.6 16 10.6 18.6 14.4 C19.6 15.8 19.4 17.4 19 18.4"/></svg>
+</button>
+<button aria-label="Ulangi" disabled style="width:44px;height:40px;padding:0;display:flex;align-items:center;justify-content:center;background:transparent;border:0;opacity:.35">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 7.5 L19 11.2 L14.8 14.8 M18.6 11.2 C14 10.6 8 10.6 5.4 14.4 C4.4 15.8 4.6 17.4 5 18.4"/></svg>
+</button>
+</div>
+</div>
+
+<!-- chip pusatkan + zoom -->
+<button style="position:absolute;top:104px;left:16px;min-height:44px;padding:0 16px 0 12px;display:flex;align-items:center;gap:8px;font-size:17px;color:#2B2724;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:16px 8px 14px 8px / 8px 14px 8px 16px;cursor:pointer">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4 C16.6 3.8 20.2 7.4 20 12 C19.8 16.6 16.2 20.2 11.8 20 C7.4 19.8 3.8 16.4 4 11.8 C4.2 7.6 7.8 4.2 12 4 Z M12 1.8 L12 6 M12 18 L12 22.2 M1.8 12 L6 12 M18 12 L22.2 12"/></svg>
+Pusatkan
+</button>
+<button aria-label="Zoom 125 persen, ketuk untuk mengatur ulang" style="position:absolute;top:104px;right:16px;min-height:44px;min-width:64px;padding:0 14px;font-size:17px;color:#2B2724;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:8px 14px 8px 16px / 14px 8px 16px 8px;cursor:pointer">125%</button>
+
+<!-- popover opsi pena -->
+<div style="position:absolute;left:12px;right:12px;bottom:112px;box-sizing:border-box;padding:16px 18px 14px;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:18px 8px 20px 10px / 10px 20px 8px 18px;box-shadow:3px 4px 0 rgba(43,39,36,.25)">
+<span style="position:absolute;left:26px;bottom:-10px;width:16px;height:16px;background:#FBF7EC;border-right:2.5px solid #2B2724;border-bottom:2.5px solid #2B2724;transform:rotate(45deg)"></span>
+<div style="font-size:16px;color:#5B534A;margin-bottom:6px">Warna</div>
+<div style="display:flex;gap:12px;padding:4px 4px 8px">
+<button aria-label="Hitam" style="width:40px;height:40px;padding:0;background:#2B2724;border:2.5px solid #2B2724;border-radius:50%"></button>
+<button aria-label="Merah" style="width:40px;height:40px;padding:0;background:#C23B1F;border:2.5px solid #2B2724;border-radius:50%"></button>
+<button aria-label="Biru, terpilih" aria-pressed="true" style="width:40px;height:40px;padding:0;background:#2D5DA8;border:2.5px solid #2B2724;border-radius:50%;box-shadow:0 0 0 3px #FBF7EC,0 0 0 5.5px #2B2724"></button>
+<button aria-label="Hijau" style="width:40px;height:40px;padding:0;background:#3E7D4F;border:2.5px solid #2B2724;border-radius:50%"></button>
+<button aria-label="Oranye" style="width:40px;height:40px;padding:0;background:#E0801C;border:2.5px solid #2B2724;border-radius:50%"></button>
+<button aria-label="Ungu" style="width:40px;height:40px;padding:0;background:#7A4FA3;border:2.5px solid #2B2724;border-radius:50%"></button>
+</div>
+<div style="font-size:16px;color:#5B534A;margin:4px 0 6px">Ketebalan</div>
+<div style="display:flex;gap:10px">
+<button aria-label="Tipis" style="width:64px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;background:transparent;border:2.5px solid #2B2724;border-radius:14px 6px 12px 8px / 8px 12px 6px 14px"><span style="width:6px;height:6px;border-radius:50%;background:#2D5DA8"></span></button>
+<button aria-label="Sedang, terpilih" aria-pressed="true" style="width:64px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;background:#F5D547;border:2.5px solid #2B2724;border-radius:8px 14px 6px 12px / 12px 6px 14px 8px"><span style="width:12px;height:12px;border-radius:50%;background:#2D5DA8"></span></button>
+<button aria-label="Tebal" style="width:64px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;background:transparent;border:2.5px solid #2B2724;border-radius:12px 8px 14px 6px / 6px 14px 8px 12px"><span style="width:20px;height:20px;border-radius:50%;background:#2D5DA8"></span></button>
+</div>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:2px dashed rgba(43,39,36,.35);font-size:19px">
+<span id="finger-label">Jari bisa menggambar</span>
+<button role="switch" aria-checked="true" aria-labelledby="finger-label" style="width:60px;height:34px;padding:0;position:relative;background:#F5D547;border:2.5px solid #2B2724;border-radius:18px 8px 16px 8px / 8px 16px 8px 18px;cursor:pointer">
+<span style="position:absolute;right:4px;top:3px;width:22px;height:22px;background:#2B2724;border-radius:50%"></span>
+</button>
+</div>
+</div>
+
+<!-- toolbar bawah -->
+<nav aria-label="Alat menulis" style="position:absolute;left:12px;right:12px;bottom:28px;height:76px;box-sizing:border-box;padding:0 4px;display:flex;align-items:center;justify-content:space-around;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:22px 10px 24px 12px / 12px 24px 10px 22px;box-shadow:3px 4px 0 rgba(43,39,36,.25)">
+<button aria-pressed="true" style="position:relative;width:58px;height:62px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:#2B2724;background:#F5D547;border:2.5px solid #2B2724;border-radius:16px 8px 14px 8px / 8px 14px 8px 16px">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 19.6 L5.4 15.2 L15.6 5 C16.6 4 18 4 19 5 C20 6 20 7.4 19 8.4 L8.8 18.6 Z M13.8 6.8 L17.2 10.2"/></svg>
+Pena
+<span style="position:absolute;right:5px;top:5px;width:11px;height:11px;border-radius:50%;background:#2D5DA8;border:2px solid #2B2724"></span>
+</button>
+<button aria-pressed="false" style="width:56px;height:62px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:#2B2724;background:transparent;border:0">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 19.4 L9.6 18.8 L8.6 16.6 Z M9.4 16.4 L17.4 8.4 L15.4 6.4 L7.4 14.4 Z M15.8 6 L17.2 4.6 C18 3.8 19.2 3.8 20 4.6 C20.8 5.4 20.8 6.6 20 7.4 L18.4 9"/></svg>
+Spidol
+</button>
+<button aria-pressed="false" style="width:56px;height:62px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:#2B2724;background:transparent;border:0">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.4 13.6 L13.4 6.6 L18 11.2 L11 18.2 L7 18.4 Z M4.5 20.6 L10.5 20.6 M13.4 6.6 L15.4 4.8"/></svg>
+Stabilo
+</button>
+<button aria-pressed="false" style="width:56px;height:62px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:#2B2724;background:transparent;border:0">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 15.4 L13.6 6.6 C14.4 5.8 15.8 5.8 16.6 6.6 L19 9 C19.8 9.8 19.8 11.2 19 12 L13 18.6 L8.4 18.6 Z M9.6 11 L15 16.4 M8.4 20.4 L20 20.4"/></svg>
+Hapus
+</button>
+<button aria-pressed="false" style="width:56px;height:62px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:#2B2724;background:transparent;border:0">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 6.2 C10 5.8 14.2 6.2 18.6 5.9 M12.1 6 C11.9 10.4 12.2 14.6 12 19 M9.4 19 L14.6 19.1"/></svg>
+Teks
+</button>
+<button aria-pressed="false" style="width:56px;height:62px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:#2B2724;background:transparent;border:0">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.8 L12 20.2 M3.8 12 L20.2 12 M9 6.8 L12 3.8 L15 6.8 M9 17.2 L12 20.2 L15 17.2 M6.8 9 L3.8 12 L6.8 15 M17.2 9 L20.2 12 L17.2 15"/></svg>
+Geser
+</button>
+</nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":892}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

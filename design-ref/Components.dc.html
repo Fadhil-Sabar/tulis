@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Komponen Tulis</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button,input{font-family:inherit}
+</style>
+</helmet>
+<div style="width:960px;height:820px;box-sizing:border-box;position:relative;overflow:hidden;padding:32px 36px;background-color:#F6F0E2;background-image:radial-gradient(rgba(43,39,36,.10) 1.1px,transparent 1.3px);background-size:22px 22px;color:#2B2724;font-family:'Patrick Hand',cursive;font-size:18px">
+
+<div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:14px">
+<h1 style="margin:0;font-family:'Caveat',cursive;font-weight:700;font-size:54px;line-height:1">Komponen</h1>
+<svg width="140" height="14" viewBox="0 0 156 14" aria-hidden="true" style="margin-bottom:8px"><path d="M2 8 C14 2 22 13 36 7 C50 1 58 12 72 7 C86 2 94 12 108 7 C120 3 134 11 154 6" fill="none" stroke="#C23B1F" stroke-width="3" stroke-linecap="round"/></svg>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px">
+
+<!-- kolom kiri -->
+<div style="display:flex;flex-direction:column;gap:18px">
+
+<section>
+<h2 style="margin:0 0 10px;font-family:'Caveat',cursive;font-weight:700;font-size:30px;line-height:1;padding-bottom:4px;border-bottom:2px dashed rgba(43,39,36,.35)">Warna</h2>
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 10px">
+<div><div style="width:54px;height:54px;box-sizing:border-box;background:#F6F0E2;border:2.5px solid #2B2724;border-radius:14px 6px 12px 8px / 8px 12px 6px 14px"></div><div style="font-size:16px;margin-top:4px">Kertas</div><div style="font-size:14px;color:#5B534A">#F6F0E2</div></div>
+<div><div style="width:54px;height:54px;box-sizing:border-box;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:8px 14px 6px 12px / 12px 6px 14px 8px"></div><div style="font-size:16px;margin-top:4px">Kartu</div><div style="font-size:14px;color:#5B534A">#FBF7EC</div></div>
+<div><div style="width:54px;height:54px;box-sizing:border-box;background:#2B2724;border:2.5px solid #2B2724;border-radius:12px 8px 14px 6px / 6px 14px 8px 12px"></div><div style="font-size:16px;margin-top:4px">Tinta</div><div style="font-size:14px;color:#5B534A">#2B2724</div></div>
+<div><div style="width:54px;height:54px;box-sizing:border-box;background:#5B534A;border:2.5px solid #2B2724;border-radius:6px 12px 8px 14px / 14px 8px 12px 6px"></div><div style="font-size:16px;margin-top:4px">Tinta lembut</div><div style="font-size:14px;color:#5B534A">#5B534A</div></div>
+<div><div style="width:54px;height:54px;box-sizing:border-box;background:#C23B1F;border:2.5px solid #2B2724;border-radius:14px 6px 12px 8px / 8px 12px 6px 14px"></div><div style="font-size:16px;margin-top:4px">Pensil merah</div><div style="font-size:14px;color:#5B534A">#C23B1F</div></div>
+<div><div style="width:54px;height:54px;box-sizing:border-box;background:#F5D547;border:2.5px solid #2B2724;border-radius:8px 14px 6px 12px / 12px 6px 14px 8px"></div><div style="font-size:16px;margin-top:4px">Stabilo</div><div style="font-size:14px;color:#5B534A">#F5D547</div></div>
+<div><div style="width:54px;height:54px;box-sizing:border-box;background:#2D5DA8;border:2.5px solid #2B2724;border-radius:12px 8px 14px 6px / 6px 14px 8px 12px"></div><div style="font-size:16px;margin-top:4px">Biru tinta</div><div style="font-size:14px;color:#5B534A">#2D5DA8</div></div>
+<div><div style="width:54px;height:54px;box-sizing:border-box;background:#3E7D4F;border:2.5px solid #2B2724;border-radius:6px 12px 8px 14px / 14px 8px 12px 6px"></div><div style="font-size:16px;margin-top:4px">Hijau</div><div style="font-size:14px;color:#5B534A">#3E7D4F</div></div>
+</div>
+</section>
+
+<section>
+<h2 style="margin:0 0 10px;font-family:'Caveat',cursive;font-weight:700;font-size:30px;line-height:1;padding-bottom:4px;border-bottom:2px dashed rgba(43,39,36,.35)">Tipografi</h2>
+<div style="display:flex;align-items:baseline;gap:16px">
+<span style="font-family:'Caveat',cursive;font-weight:700;font-size:48px;line-height:1">Tulis</span>
+<span style="font-size:16px;color:#5B534A">Caveat 700 · judul &amp; tulisan tangan</span>
+</div>
+<div style="display:flex;align-items:baseline;gap:16px;margin-top:6px">
+<span style="font-size:24px;line-height:1.1">Catatan Fisika Bab 3</span>
+<span style="font-size:16px;color:#5B534A">Patrick Hand 400 · antarmuka</span>
+</div>
+</section>
+
+<section>
+<h2 style="margin:0 0 10px;font-family:'Caveat',cursive;font-weight:700;font-size:30px;line-height:1;padding-bottom:4px;border-bottom:2px dashed rgba(43,39,36,.35)">Tombol &amp; chip</h2>
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px">
+<button style="height:52px;padding:0 22px;font-size:20px;color:#FBF7EC;background:#C23B1F;border:2.5px solid #2B2724;border-radius:22px 10px 20px 12px / 12px 20px 10px 22px;box-shadow:3px 4px 0 #2B2724;cursor:pointer">Utama</button>
+<button style="height:52px;padding:0 22px;font-size:20px;color:#2B2724;background:transparent;border:2.5px solid #2B2724;border-radius:12px 20px 10px 22px / 20px 10px 22px 12px;cursor:pointer">Sekunder</button>
+<button aria-pressed="true" style="min-height:44px;padding:0 18px;font-size:19px;color:#2B2724;background:#F5D547;border:2.5px solid #2B2724;border-radius:20px 8px 18px 10px / 10px 18px 8px 20px;cursor:pointer">Chip aktif</button>
+<button aria-pressed="false" style="min-height:44px;padding:0 18px;font-size:19px;color:#2B2724;background:transparent;border:2.5px solid #2B2724;border-radius:10px 18px 8px 20px / 18px 8px 20px 10px;cursor:pointer">Chip</button>
+<button aria-label="Ikon bulat" style="width:48px;height:48px;padding:0;display:flex;align-items:center;justify-content:center;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:52% 48% 55% 45% / 48% 54% 46% 52%;box-shadow:2px 3px 0 rgba(43,39,36,.2);cursor:pointer">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5 C12 8.4 10 10.2 8.2 12.1 C10 13.9 12 15.8 14.6 18.6"/></svg>
+</button>
+</div>
+</section>
+
+<section>
+<h2 style="margin:0 0 10px;font-family:'Caveat',cursive;font-weight:700;font-size:30px;line-height:1;padding-bottom:4px;border-bottom:2px dashed rgba(43,39,36,.35)">Tombol alat</h2>
+<div style="display:flex;align-items:flex-start;gap:22px">
+<div style="text-align:center">
+<button style="width:58px;height:62px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:#2B2724;background:transparent;border:2.5px solid transparent">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 19.6 L5.4 15.2 L15.6 5 C16.6 4 18 4 19 5 C20 6 20 7.4 19 8.4 L8.8 18.6 Z M13.8 6.8 L17.2 10.2"/></svg>
+Pena
+</button>
+<div style="font-size:15px;color:#5B534A;margin-top:4px">Biasa</div>
+</div>
+<div style="text-align:center">
+<button aria-pressed="true" style="position:relative;width:58px;height:62px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:#2B2724;background:#F5D547;border:2.5px solid #2B2724;border-radius:16px 8px 14px 8px / 8px 14px 8px 16px">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 19.6 L5.4 15.2 L15.6 5 C16.6 4 18 4 19 5 C20 6 20 7.4 19 8.4 L8.8 18.6 Z M13.8 6.8 L17.2 10.2"/></svg>
+Pena
+<span style="position:absolute;right:5px;top:5px;width:11px;height:11px;border-radius:50%;background:#2D5DA8;border:2px solid #2B2724"></span>
+</button>
+<div style="font-size:15px;color:#5B534A;margin-top:4px">Terpilih</div>
+</div>
+<div style="text-align:center">
+<button disabled style="width:58px;height:62px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:#2B2724;background:transparent;border:2.5px solid transparent;opacity:.35">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7.5 L5 11.2 L9.2 14.8 M5.4 11.2 C10 10.6 16 10.6 18.6 14.4 C19.6 15.8 19.4 17.4 19 18.4"/></svg>
+Urung
+</button>
+<div style="font-size:15px;color:#5B534A;margin-top:4px">Nonaktif</div>
+</div>
+</div>
+</section>
+
+</div>
+
+<!-- kolom kanan -->
+<div style="display:flex;flex-direction:column;gap:18px">
+
+<section>
+<h2 style="margin:0 0 10px;font-family:'Caveat',cursive;font-weight:700;font-size:30px;line-height:1;padding-bottom:4px;border-bottom:2px dashed rgba(43,39,36,.35)">Kontrol</h2>
+<label for="contoh-judul" style="display:block;font-size:16px;color:#5B534A;margin-bottom:4px">Kolom isian</label>
+<input id="contoh-judul" type="text" value="Ide skripsi" style="width:100%;height:50px;box-sizing:border-box;padding:0 16px;font-size:21px;color:#2B2724;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:14px 6px 12px 8px / 8px 12px 6px 14px;outline:none">
+<div style="display:flex;align-items:center;gap:22px;margin-top:14px">
+<div style="display:flex;align-items:center;gap:10px">
+<button role="switch" aria-checked="true" aria-label="Saklar aktif" style="width:60px;height:34px;padding:0;position:relative;background:#F5D547;border:2.5px solid #2B2724;border-radius:18px 8px 16px 8px / 8px 16px 8px 18px;cursor:pointer"><span style="position:absolute;right:4px;top:3px;width:22px;height:22px;background:#2B2724;border-radius:50%"></span></button>
+<span style="font-size:16px;color:#5B534A">Aktif</span>
+</div>
+<div style="display:flex;align-items:center;gap:10px">
+<button role="switch" aria-checked="false" aria-label="Saklar mati" style="width:60px;height:34px;padding:0;position:relative;background:transparent;border:2.5px solid #2B2724;border-radius:18px 8px 16px 8px / 8px 16px 8px 18px;cursor:pointer"><span style="position:absolute;left:4px;top:3px;width:22px;height:22px;background:#2B2724;border-radius:50%"></span></button>
+<span style="font-size:16px;color:#5B534A">Mati</span>
+</div>
+</div>
+<div style="display:flex;align-items:center;gap:14px;margin-top:16px">
+<button aria-label="Merah" style="width:38px;height:38px;padding:0;background:#C23B1F;border:2.5px solid #2B2724;border-radius:50%"></button>
+<button aria-label="Biru, terpilih" aria-pressed="true" style="width:38px;height:38px;padding:0;background:#2D5DA8;border:2.5px solid #2B2724;border-radius:50%;box-shadow:0 0 0 3px #F6F0E2,0 0 0 5.5px #2B2724"></button>
+<span style="width:2px;height:30px;background:rgba(43,39,36,.3)"></span>
+<button aria-label="Tipis" style="width:58px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;background:transparent;border:2.5px solid #2B2724;border-radius:14px 6px 12px 8px / 8px 12px 6px 14px"><span style="width:6px;height:6px;border-radius:50%;background:#2B2724"></span></button>
+<button aria-label="Sedang, terpilih" aria-pressed="true" style="width:58px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;background:#F5D547;border:2.5px solid #2B2724;border-radius:8px 14px 6px 12px / 12px 6px 14px 8px"><span style="width:12px;height:12px;border-radius:50%;background:#2B2724"></span></button>
+</div>
+</section>
+
+<section>
+<h2 style="margin:0 0 10px;font-family:'Caveat',cursive;font-weight:700;font-size:30px;line-height:1;padding-bottom:4px;border-bottom:2px dashed rgba(43,39,36,.35)">Ikon</h2>
+<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px 6px;text-align:center">
+<div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5 C12 8.4 10 10.2 8.2 12.1 C10 13.9 12 15.8 14.6 18.6"/></svg><div style="font-size:14px;color:#5B534A">kembali</div></div>
+<div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 4.6 C14 4.4 16.8 7.2 16.6 10.6 C16.4 14 13.6 16.6 10.2 16.4 C6.8 16.2 4.4 13.4 4.6 10.1 C4.8 6.9 7.4 4.8 10.5 4.6 Z M15.2 15.4 C17 17.2 18.6 18.8 19.8 20"/></svg><div style="font-size:14px;color:#5B534A">cari</div></div>
+<div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5 C12.2 9 11.8 15 12 19.6 M4.4 12.2 C9 11.8 15 12.3 19.7 11.9"/></svg><div style="font-size:14px;color:#5B534A">tambah</div></div>
+<div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7.5 L5 11.2 L9.2 14.8 M5.4 11.2 C10 10.6 16 10.6 18.6 14.4 C19.6 15.8 19.4 17.4 19 18.4"/></svg><div style="font-size:14px;color:#5B534A">urung</div></div>
+<div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 7.5 L19 11.2 L14.8 14.8 M18.6 11.2 C14 10.6 8 10.6 5.4 14.4 C4.4 15.8 4.6 17.4 5 18.4"/></svg><div style="font-size:14px;color:#5B534A">ulang</div></div>
+<div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 19.6 L5.4 15.2 L15.6 5 C16.6 4 18 4 19 5 C20 6 20 7.4 19 8.4 L8.8 18.6 Z M13.8 6.8 L17.2 10.2"/></svg><div style="font-size:14px;color:#5B534A">pena</div></div>
+<div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 19.4 L9.6 18.8 L8.6 16.6 Z M9.4 16.4 L17.4 8.4 L15.4 6.4 L7.4 14.4 Z M15.8 6 L17.2 4.6 C18 3.8 19.2 3.8 20 4.6 C20.8 5.4 20.8 6.6 20 7.4 L18.4 9"/></svg><div style="font-size:14px;color:#5B534A">spidol</div></div>
+<div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.4 13.6 L13.4 6.6 L18 11.2 L11 18.2 L7 18.4 Z M4.5 20.6 L10.5 20.6 M13.4 6.6 L15.4 4.8"/></svg><div style="font-size:14px;color:#5B534A">stabilo</div></div>
+<div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 15.4 L13.6 6.6 C14.4 5.8 15.8 5.8 16.6 6.6 L19 9 C19.8 9.8 19.8 11.2 19 12 L13 18.6 L8.4 18.6 Z M9.6 11 L15 16.4 M8.4 20.4 L20 20.4"/></svg><div style="font-size:14px;color:#5B534A">hapus</div></div>
+<div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 6.2 C10 5.8 14.2 6.2 18.6 5.9 M12.1 6 C11.9 10.4 12.2 14.6 12 19 M9.4 19 L14.6 19.1"/></svg><div style="font-size:14px;color:#5B534A">teks</div></div>
+<div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.8 L12 20.2 M3.8 12 L20.2 12 M9 6.8 L12 3.8 L15 6.8 M9 17.2 L12 20.2 L15 17.2 M6.8 9 L3.8 12 L6.8 15 M17.2 9 L20.2 12 L17.2 15"/></svg><div style="font-size:14px;color:#5B534A">geser</div></div>
+<div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#C23B1F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7 L19 7.2 M9.5 7 C9.4 5.6 10.4 4.6 12 4.6 C13.6 4.6 14.6 5.6 14.5 7 M6.8 7.4 L7.6 19 C7.6 19.6 8.2 20 8.8 20 L15.2 20 C15.8 20 16.4 19.6 16.4 19 L17.2 7.4 M10.4 10.6 L10.6 16.6 M13.6 10.6 L13.4 16.6"/></svg><div style="font-size:14px;color:#5B534A">hapus hal.</div></div>
+<div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12 C10 8.6 5.6 8.4 5 12 C4.4 15.6 9 15.6 12 12 C15 8.4 19.6 8.4 19 12 C18.4 15.6 14 15.6 12 12 Z"/></svg><div style="font-size:14px;color:#5B534A">infinite</div></div>
+<div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 4.4 L14.6 4.4 L18 7.8 L17.8 19.6 L6.4 19.7 Z M14.4 4.6 L14.6 8 L17.8 8"/></svg><div style="font-size:14px;color:#5B534A">halaman</div></div>
+</div>
+</section>
+
+<section>
+<h2 style="margin:0 0 10px;font-family:'Caveat',cursive;font-weight:700;font-size:30px;line-height:1;padding-bottom:4px;border-bottom:2px dashed rgba(43,39,36,.35)">Bentuk garis</h2>
+<div style="display:flex;gap:14px">
+<div style="flex:1">
+<div style="height:62px;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:14px 6px 16px 8px / 8px 14px 6px 16px;box-shadow:2px 3px 0 rgba(43,39,36,.2)"></div>
+<div style="font-size:15px;margin-top:6px">Kartu</div>
+<div style="font-size:13px;color:#5B534A;line-height:1.2">14 6 16 8 / 8 14 6 16</div>
+</div>
+<div style="flex:1">
+<div style="height:62px;background:#F5D547;border:2.5px solid #2B2724;border-radius:20px 8px 18px 10px / 10px 18px 8px 20px"></div>
+<div style="font-size:15px;margin-top:6px">Tombol &amp; chip</div>
+<div style="font-size:13px;color:#5B534A;line-height:1.2">20 8 18 10 / 10 18 8 20</div>
+</div>
+<div style="flex:1">
+<div style="height:62px;width:62px;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:52% 48% 55% 45% / 48% 54% 46% 52%;box-shadow:2px 3px 0 rgba(43,39,36,.2)"></div>
+<div style="font-size:15px;margin-top:6px">Bulat</div>
+<div style="font-size:13px;color:#5B534A;line-height:1.2">52 48 55 45 / 48 54 46 52</div>
+</div>
+</div>
+<div style="font-size:15px;color:#5B534A;margin-top:10px;line-height:1.3">Garis 2,5 px · bayangan 2–3 px · tiap elemen memakai variasi radius berbeda.</div>
+</section>
+
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":960,"height":820}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

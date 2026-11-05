@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Beranda Tulis</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+a{color:inherit}
+</style>
+</helmet>
+<div style="width:412px;height:892px;box-sizing:border-box;position:relative;overflow:hidden;background-color:#F6F0E2;background-image:radial-gradient(rgba(43,39,36,.10) 1.1px,transparent 1.3px);background-size:22px 22px;color:#2B2724;font-family:'Patrick Hand',cursive;font-size:18px">
+
+<header style="padding:44px 24px 0;display:flex;align-items:flex-start;justify-content:space-between">
+<div>
+<h1 style="margin:0;font-family:'Caveat',cursive;font-weight:700;font-size:54px;line-height:1">Tulis</h1>
+<svg width="104" height="14" viewBox="0 0 156 14" preserveAspectRatio="none" aria-hidden="true" style="display:block;margin-top:2px"><path d="M2 8 C14 2 22 13 36 7 C50 1 58 12 72 7 C86 2 94 12 108 7 C120 3 134 11 154 6" fill="none" stroke="#C23B1F" stroke-width="3" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>
+</div>
+<button aria-label="Cari catatan" style="width:48px;height:48px;padding:0;display:flex;align-items:center;justify-content:center;background:#FBF7EC;border:2.5px solid #2B2724;border-radius:52% 48% 55% 45% / 48% 54% 46% 52%;box-shadow:2px 3px 0 rgba(43,39,36,.2);cursor:pointer">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B2724" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 4.6 C14 4.4 16.8 7.2 16.6 10.6 C16.4 14 13.6 16.6 10.2 16.4 C6.8 16.2 4.4 13.4 4.6 10.1 C4.8 6.9 7.4 4.8 10.5 4.6 Z M15.2 15.4 C17 17.2 18.6 18.8 19.8 20"/></svg>
+</button>
+</header>
+
+<div style="display:flex;gap:10px;padding:22px 24px 6px">
+<button aria-pressed="true" style="min-height:44px;padding:0 18px;font-size:19px;color:#2B2724;background:#F5D547;border:2.5px solid #2B2724;border-radius:20px 8px 18px 10px / 10px 18px 8px 20px;cursor:pointer">Semua</button>
+<button aria-pressed="false" style="min-height:44px;padding:0 18px;font-size:19px;color:#2B2724;background:transparent;border:2.5px solid #2B2724;border-radius:10px 18px 8px 20px / 18px 8px 20px 10px;cursor:pointer">Infinite</button>
+<button aria-pressed="false" style="min-height:44px;padding:0 18px;font-size:19px;color:#2B2724;background:transparent;border:2.5px solid #2B2724;border-radius:18px 10px 20px 8px / 8px 20px 10px 18px;cursor:pointer">Halaman</button>
+</div>
+
+<main style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 16px;padding:16px 24px">
+
+<a href="EditorInfinite.dc.html" style="display:block;text-decoration:none;transform:rotate(-1deg)">
+<div style="height:132px;position:relative;overflow:hidden;background-color:#FBF7EC;background-image:radial-gradient(rgba(43,39,36,.22) 1.2px,transparent 1.4px);background-size:14px 14px;border:2.5px solid #2B2724;border-radius:14px 6px 16px 8px / 8px 14px 6px 16px;box-shadow:2px 3px 0 rgba(43,39,36,.2)">
+<svg width="100%" height="100%" viewBox="0 0 170 130" preserveAspectRatio="xMidYMid slice" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<path d="M18 100 C40 98 60 101 84 98" stroke="#F5D547" stroke-width="10" opacity=".85"/>
+<path d="M14 22 C40 19 52 20 66 22 C67 36 66 44 66 52 C50 54 34 53 14 52 C13 42 13 32 14 22 Z" stroke="#2B2724" stroke-width="2.2"/>
+<path d="M104 70 C122 68 136 68 154 70 C155 84 154 94 154 106 C136 108 120 107 104 106 C103 94 104 82 104 70 Z" stroke="#2B2724" stroke-width="2.2"/>
+<path d="M66 40 C80 42 92 52 100 70 M92 66 L100 71 L102 62" stroke="#2D5DA8" stroke-width="2.2"/>
+<path d="M120 24 C132 18 148 26 146 38 C144 50 126 50 120 42 C116 36 116 28 120 24 Z" stroke="#C23B1F" stroke-width="2.2"/>
+</svg>
+</div>
+<div style="padding:8px 4px 0">
+<div style="font-size:20px;line-height:1.15">Sketsa UI aplikasi</div>
+<div style="display:flex;align-items:center;gap:6px;font-size:15px;color:#5B534A;margin-top:2px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B534A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12 C10 8.6 5.6 8.4 5 12 C4.4 15.6 9 15.6 12 12 C15 8.4 19.6 8.4 19 12 C18.4 15.6 14 15.6 12 12 Z"/></svg>
+Tak terbatas · 4 Nov
+</div>
+</div>
+</a>
+
+<a href="EditorPaged.dc.html" style="display:block;text-decoration:none;transform:rotate(.8deg)">
+<div style="height:132px;position:relative;overflow:hidden;background-color:#E9E0CB;border:2.5px solid #2B2724;border-radius:8px 16px 6px 14px / 14px 6px 16px 8px;box-shadow:2px 3px 0 rgba(43,39,36,.2)">
+<svg width="100%" height="100%" viewBox="0 0 170 130" preserveAspectRatio="xMidYMid slice" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<path d="M36 8 L134 8 L134 124 L36 124 Z" fill="#FFFDF6" stroke="#2B2724" stroke-width="1.6"/>
+<path d="M46 26 C58 22 70 29 84 25 C96 21 108 27 124 23" stroke="#2D5DA8" stroke-width="3"/>
+<path d="M46 44 C60 41 72 46 88 43 C100 40 110 45 124 42 M46 60 C58 58 70 62 82 59 M46 76 C62 73 74 78 92 75 C104 73 112 77 122 75" stroke="#2B2724" stroke-width="1.8"/>
+<path d="M46 92 C60 90 76 94 96 91" stroke="#F5D547" stroke-width="8" opacity=".85"/>
+<path d="M100 100 C108 94 120 98 118 108 C116 116 104 116 100 110 C97 106 97 103 100 100 Z" stroke="#C23B1F" stroke-width="2"/>
+</svg>
+</div>
+<div style="padding:8px 4px 0">
+<div style="font-size:20px;line-height:1.15">Catatan Fisika Bab 3</div>
+<div style="display:flex;align-items:center;gap:6px;font-size:15px;color:#5B534A;margin-top:2px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B534A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 4.4 L14.6 4.4 L18 7.8 L17.8 19.6 L6.4 19.7 Z M14.4 4.6 L14.6 8 L17.8 8"/></svg>
+12 halaman · 3 Nov
+</div>
+</div>
+</a>
+
+<a href="EditorPaged.dc.html" style="display:block;text-decoration:none;transform:rotate(.6deg)">
+<div style="height:132px;position:relative;overflow:hidden;background-color:#E9E0CB;border:2.5px solid #2B2724;border-radius:16px 8px 14px 6px / 6px 14px 8px 16px;box-shadow:2px 3px 0 rgba(43,39,36,.2)">
+<svg width="100%" height="100%" viewBox="0 0 170 130" preserveAspectRatio="xMidYMid slice" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<path d="M36 8 L134 8 L134 124 L36 124 Z" fill="#FFFDF6" stroke="#2B2724" stroke-width="1.6"/>
+<path d="M85 30 C93 26 101 32 99 40 C97 48 87 48 83 42 C80 38 81 33 85 30 Z" stroke="#C23B1F" stroke-width="2.2"/>
+<path d="M91 20 L91 15 M104 25 L108 21 M110 38 L115 38 M72 25 L68 21 M66 38 L61 38" stroke="#C23B1F" stroke-width="2"/>
+<path d="M48 64 C62 61 74 66 90 63 C102 61 112 65 124 63 M48 80 C60 78 72 82 86 79 M48 96 C64 93 76 98 94 95 C104 93 112 96 120 94" stroke="#2B2724" stroke-width="1.8"/>
+</svg>
+</div>
+<div style="padding:8px 4px 0">
+<div style="font-size:20px;line-height:1.15">Jurnal harian</div>
+<div style="display:flex;align-items:center;gap:6px;font-size:15px;color:#5B534A;margin-top:2px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B534A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 4.4 L14.6 4.4 L18 7.8 L17.8 19.6 L6.4 19.7 Z M14.4 4.6 L14.6 8 L17.8 8"/></svg>
+38 halaman · 2 Nov
+</div>
+</div>
+</a>
+
+<a href="EditorInfinite.dc.html" style="display:block;text-decoration:none;transform:rotate(-.7deg)">
+<div style="height:132px;position:relative;overflow:hidden;background-color:#FBF7EC;background-image:radial-gradient(rgba(43,39,36,.22) 1.2px,transparent 1.4px);background-size:14px 14px;border:2.5px solid #2B2724;border-radius:8px 14px 16px 6px / 16px 8px 14px 6px;box-shadow:2px 3px 0 rgba(43,39,36,.2)">
+<svg width="100%" height="100%" viewBox="0 0 170 130" preserveAspectRatio="xMidYMid slice" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<path d="M70 52 C74 40 94 38 100 50 C106 62 92 74 80 72 C70 70 66 60 70 52 Z" stroke="#2B2724" stroke-width="2.2" fill="#F5D547" fill-opacity=".7"/>
+<path d="M70 50 C56 40 44 36 30 30 M100 52 C114 44 128 42 142 34 M86 74 C88 88 90 98 94 110" stroke="#2D5DA8" stroke-width="2.2"/>
+<path d="M18 24 C26 20 36 24 34 32 C32 38 22 38 18 32 Z M138 24 C146 20 156 26 152 34 C148 40 138 38 136 32 Z M88 108 C98 104 108 110 104 118 C100 124 90 122 86 116 Z" stroke="#2B2724" stroke-width="2"/>
+</svg>
+</div>
+<div style="padding:8px 4px 0">
+<div style="font-size:20px;line-height:1.15">Brainstorm proyek</div>
+<div style="display:flex;align-items:center;gap:6px;font-size:15px;color:#5B534A;margin-top:2px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B534A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12 C10 8.6 5.6 8.4 5 12 C4.4 15.6 9 15.6 12 12 C15 8.4 19.6 8.4 19 12 C18.4 15.6 14 15.6 12 12 Z"/></svg>
+Tak terbatas · 1 Nov
+</div>
+</div>
+</a>
+
+<a href="EditorPaged.dc.html" style="display:block;text-decoration:none;transform:rotate(-.5deg)">
+<div style="height:132px;position:relative;overflow:hidden;background-color:#E9E0CB;border:2.5px solid #2B2724;border-radius:14px 6px 8px 16px / 8px 16px 6px 14px;box-shadow:2px 3px 0 rgba(43,39,36,.2)">
+<svg width="100%" height="100%" viewBox="0 0 170 130" preserveAspectRatio="xMidYMid slice" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<path d="M36 8 L134 8 L134 124 L36 124 Z" fill="#FFFDF6" stroke="#2B2724" stroke-width="1.6"/>
+<path d="M46 30 L54 38 L66 22 M46 56 L54 64 L66 48 M46 82 L54 90 L66 74" stroke="#3E7D4F" stroke-width="2.4"/>
+<path d="M76 32 C88 30 100 34 120 31 M76 58 C86 56 98 60 114 57 M76 84 C90 82 102 86 122 83" stroke="#2B2724" stroke-width="1.8"/>
+</svg>
+</div>
+<div style="padding:8px 4px 0">
+<div style="font-size:20px;line-height:1.15">Resep &amp; belanja</div>
+<div style="display:flex;align-items:center;gap:6px;font-size:15px;color:#5B534A;margin-top:2px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B534A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 4.4 L14.6 4.4 L18 7.8 L17.8 19.6 L6.4 19.7 Z M14.4 4.6 L14.6 8 L17.8 8"/></svg>
+5 halaman · 29 Okt
+</div>
+</div>
+</a>
+
+<a href="EditorInfinite.dc.html" style="display:block;text-decoration:none;transform:rotate(.9deg)">
+<div style="height:132px;position:relative;overflow:hidden;background-color:#FBF7EC;background-image:radial-gradient(rgba(43,39,36,.22) 1.2px,transparent 1.4px);background-size:14px 14px;border:2.5px solid #2B2724;border-radius:16px 8px 6px 14px / 6px 14px 8px 16px;box-shadow:2px 3px 0 rgba(43,39,36,.2)">
+<svg width="100%" height="100%" viewBox="0 0 170 130" preserveAspectRatio="xMidYMid slice" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<path d="M28 64 C40 30 78 22 110 40 C138 56 142 90 112 104 C80 118 40 104 28 64 Z" stroke="#3E7D4F" stroke-width="2.4"/>
+<path d="M74 62 C80 54 92 56 94 66 C96 76 84 80 76 74 C72 70 72 66 74 62 Z" stroke="#C23B1F" stroke-width="2.2"/>
+<path d="M44 90 C60 96 76 98 96 94" stroke="#F5D547" stroke-width="9" opacity=".85"/>
+</svg>
+</div>
+<div style="padding:8px 4px 0">
+<div style="font-size:20px;line-height:1.15">Peta konsep Biologi</div>
+<div style="display:flex;align-items:center;gap:6px;font-size:15px;color:#5B534A;margin-top:2px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B534A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12 C10 8.6 5.6 8.4 5 12 C4.4 15.6 9 15.6 12 12 C15 8.4 19.6 8.4 19 12 C18.4 15.6 14 15.6 12 12 Z"/></svg>
+Tak terbatas · 27 Okt
+</div>
+</div>
+</a>
+
+</main>
+
+<a href="NewNotebook.dc.html" aria-label="Buat notebook baru" style="position:absolute;right:24px;bottom:32px;height:60px;box-sizing:border-box;padding:0 24px 0 16px;display:flex;align-items:center;gap:10px;text-decoration:none;font-size:22px;color:#FBF7EC;background:#C23B1F;border:2.5px solid #2B2724;border-radius:30px 12px 28px 14px / 14px 28px 12px 30px;box-shadow:3px 4px 0 #2B2724">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FBF7EC" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5 C12.2 9 11.8 15 12 19.6 M4.4 12.2 C9 11.8 15 12.3 19.7 11.9"/></svg>
+Baru
+</a>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":892}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
