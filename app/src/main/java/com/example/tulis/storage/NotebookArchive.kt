@@ -21,7 +21,9 @@ object NotebookArchive {
     private const val MAX_ENTRIES = 5000
     private const val BUF_SIZE = 64 * 1024
     private val entryName = Regex("^(meta\\.json|manifest\\.json|thumb\\.webp|page_\\d+\\.bin)$")
-    private val metaKeys = listOf("title", "mode", "paper", "paperSpacing", "orientation", "folderId", "pageCount")
+    const val HASH_PREFIX = "v2:"
+    private val PAPER_STYLES = setOf("PLAIN", "DOTS", "GRID", "LINES")
+    private val ORIENTATIONS = setOf("PORTRAIT", "LANDSCAPE")
 
     sealed class UnpackResult {
         class Ok(
@@ -35,11 +37,27 @@ object NotebookArchive {
         class Fail(val reason: String) : UnpackResult()
     }
 
+    private fun semanticFields(meta: JSONObject): List<Pair<String, String>> {
+        val mode = meta.optString("mode", "")
+        val paper = meta.optString("paper", "").takeIf { it in PAPER_STYLES } ?: if (mode == "INFINITE") "DOTS" else "PLAIN"
+        val spacing = meta.optDouble("paperSpacing", 28.0).toFloat().coerceIn(12f, 120f)
+        val orientation = meta.optString("orientation", "").takeIf { it in ORIENTATIONS } ?: "PORTRAIT"
+        return listOf(
+            "title" to meta.optString("title", ""),
+            "mode" to mode,
+            "paper" to paper,
+            "paperSpacing" to String.format(java.util.Locale.ROOT, "%.2f", spacing),
+            "orientation" to orientation,
+            "folderId" to meta.optString("folderId", ""),
+            "pageCount" to meta.optInt("pageCount", 0).toString()
+        )
+    }
+
     fun contentHash(dir: File): String {
         val meta = JSONObject(File(dir, "meta.json").readText())
         val digest = MessageDigest.getInstance("SHA-256")
-        for (key in metaKeys) {
-            digest.update("$key=${meta.optString(key, "")}\n".toByteArray(Charsets.UTF_8))
+        for ((key, value) in semanticFields(meta)) {
+            digest.update("$key=$value\n".toByteArray(Charsets.UTF_8))
         }
         val pageCount = meta.getInt("pageCount")
         val buf = ByteArray(BUF_SIZE)
@@ -57,7 +75,7 @@ object NotebookArchive {
                 digest.update("missing=$i\n".toByteArray(Charsets.UTF_8))
             }
         }
-        return digest.digest().joinToString("") { "%02x".format(it) }
+        return HASH_PREFIX + digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     fun pack(dir: File, folderPath: List<Pair<String, String>>, appVersion: String, out: File) {
@@ -184,10 +202,12 @@ object NotebookArchive {
             return UnpackResult.Fail("Meta tidak cocok")
         }
         for (i in 0 until pageCount) {
-            if (!validPage(File(stagingDir, "page_$i.bin"))) return UnpackResult.Fail("Halaman $i rusak")
+            val page = File(stagingDir, "page_$i.bin")
+            if (page.exists() && !validPage(page)) return UnpackResult.Fail("Halaman $i rusak")
         }
         val hash = contentHash(stagingDir)
-        if (hash != manifest.getString("hash")) return UnpackResult.Fail("Hash tidak cocok")
+        val declared = manifest.getString("hash")
+        if (declared.startsWith(HASH_PREFIX) && hash != declared) return UnpackResult.Fail("Hash tidak cocok")
         return UnpackResult.Ok(id, manifest.getString("title"), hash, pageCount, parseFolderPath(manifest))
     }
 

@@ -460,6 +460,7 @@ class VaultSync private constructor(appContext: Context) {
             return
         }
         when {
+            !vault.startsWith(NotebookArchive.HASH_PREFIX) -> push(id, tree, tulis, dataDir, files, nb, fp)
             vault == local -> {
                 nb[id] = NbState(local, fp, vf.modified, vf.size, s?.at ?: System.currentTimeMillis(), s?.md, s?.pg)
                 saveState(tree.toString(), nb)

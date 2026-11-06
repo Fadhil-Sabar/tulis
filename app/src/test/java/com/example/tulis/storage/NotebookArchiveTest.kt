@@ -53,6 +53,32 @@ class NotebookArchiveTest {
     }
 
     @Test
+    fun roundTripWithMissingEmptyPage() {
+        val dir = makeNotebook("nb5", 3)
+        File(dir, "page_2.bin").delete()
+        val zip = File(tmp.root, "nb5.tulis")
+        NotebookArchive.pack(dir, emptyList(), "1.0", zip)
+        val r = NotebookArchive.unpack(zip, File(tmp.root, "s5"))
+        assertTrue(r is NotebookArchive.UnpackResult.Ok)
+        assertTrue(!File(tmp.root, "s5/page_2.bin").exists())
+        assertEquals(NotebookArchive.contentHash(dir), (r as NotebookArchive.UnpackResult.Ok).hash)
+    }
+
+    @Test
+    fun legacyMetaHashesSameAsNormalized() {
+        val legacy = makeNotebook("nb6", 1)
+        val legacyMeta = JSONObject(File(legacy, "meta.json").readText())
+        legacyMeta.remove("paper"); legacyMeta.remove("paperSpacing"); legacyMeta.remove("orientation")
+        File(legacy, "meta.json").writeText(legacyMeta.toString())
+        val full = tmp.newFolder("nb7")
+        File(legacy, "page_0.bin").copyTo(File(full, "page_0.bin"))
+        val fullMeta = JSONObject(legacyMeta.toString()).put("paper", "PLAIN").put("paperSpacing", 28.0).put("orientation", "PORTRAIT")
+        File(full, "meta.json").writeText(fullMeta.toString())
+        assertEquals(NotebookArchive.contentHash(legacy), NotebookArchive.contentHash(full))
+        assertTrue(NotebookArchive.contentHash(full).startsWith("v2:"))
+    }
+
+    @Test
     fun hashIgnoresViewportAndChangesWithPages() {
         val dir = makeNotebook("nb2", 2)
         val h1 = NotebookArchive.contentHash(dir)
