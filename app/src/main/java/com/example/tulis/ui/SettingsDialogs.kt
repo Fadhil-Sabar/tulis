@@ -11,7 +11,6 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.SeekBar
 import android.widget.TextView
 import kotlin.math.roundToInt
 import com.example.tulis.model.PageOrientation
@@ -75,7 +74,8 @@ fun showUiSettingsDialog(activity: Activity, onApplied: () -> Unit) {
         max = 1.6f,
         step = 0.05f,
         initial = currentFont,
-        format = { v -> "${(v * 100f).roundToInt()}%" },
+        displayScale = 100f,
+        suffix = "%",
         description = "Ukuran font",
         showButtons = true,
         onChange = { v ->
@@ -114,7 +114,8 @@ fun showUiSettingsDialog(activity: Activity, onApplied: () -> Unit) {
         max = 1.4f,
         step = 0.05f,
         initial = currentIcon,
-        format = { v -> "${(v * 100f).roundToInt()}%" },
+        displayScale = 100f,
+        suffix = "%",
         description = "Zoom tampilan (tombol, ikon, teks)",
         showButtons = true,
         onChange = { v ->
@@ -384,7 +385,43 @@ fun showPaperDialog(
 
     val chipViews = mutableListOf<LinearLayout>()
     val chipTexts = mutableListOf<TextView>()
-    lateinit var spacingContainer: LinearLayout
+
+    val spacingLabel = TextView(activity).apply {
+        text = "Jarak"
+        setTextColor(Palette.INK)
+        textSize = 16f
+        typeface = Fonts.ui(context)
+    }
+    dialogView.addView(
+        spacingLabel,
+        LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(8f)
+        }
+    )
+
+    val spacingSlider = SketchSlider(
+        context = activity,
+        min = 12f,
+        max = 120f,
+        step = 4f,
+        initial = currentSpacing,
+        description = "Jarak kertas",
+        showButtons = true,
+        onChange = { v ->
+            currentSpacing = v
+            onChanged(currentStyle, currentSpacing)
+        },
+        onCommit = { v ->
+            currentSpacing = v
+            onChanged(currentStyle, currentSpacing)
+        }
+    )
+    dialogView.addView(
+        spacingSlider,
+        LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(20f)
+        }
+    )
 
     fun updateStyleSelection() {
         for ((idx, item) in styles.withIndex()) {
@@ -400,11 +437,12 @@ fun showPaperDialog(
             }
         }
         val isPlain = currentStyle == PaperStyle.PLAIN
-        spacingContainer.alpha = if (isPlain) 0.4f else 1.0f
-        for (i in 0 until spacingContainer.childCount) {
-            spacingContainer.getChildAt(i).isEnabled = !isPlain
-        }
+        val visibility = if (isPlain) View.GONE else View.VISIBLE
+        spacingLabel.visibility = visibility
+        spacingSlider.visibility = visibility
     }
+
+    updateStyleSelection()
 
     for (item in styles) {
         val chip = LinearLayout(activity).apply {
@@ -454,115 +492,6 @@ fun showPaperDialog(
             }
         )
     }
-
-    val spacingLabel = TextView(activity).apply {
-        text = "Jarak"
-        setTextColor(Palette.INK)
-        textSize = 16f
-        typeface = Fonts.ui(context)
-    }
-    dialogView.addView(
-        spacingLabel,
-        LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = dp(8f)
-        }
-    )
-
-    spacingContainer = LinearLayout(activity).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        minimumHeight = dp(44f)
-    }
-
-    val minusBtn = TextView(activity).apply {
-        text = "−"
-        textSize = 20f
-        typeface = Fonts.ui(context)
-        gravity = Gravity.CENTER
-        setTextColor(Palette.INK)
-        background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, cornerDp = 8f)
-        minimumHeight = dp(44f)
-        isClickable = true
-        isFocusable = true
-        contentDescription = "Kurangi jarak kertas"
-    }
-
-    val spacingText = TextView(activity).apply {
-        text = "${currentSpacing.toInt()}"
-        textSize = 16f
-        typeface = Fonts.ui(context)
-        setTextColor(Palette.INK)
-        gravity = Gravity.CENTER
-        minimumHeight = dp(44f)
-        isClickable = false
-        isFocusable = false
-    }
-
-    val plusBtn = TextView(activity).apply {
-        text = "+"
-        textSize = 20f
-        typeface = Fonts.ui(context)
-        gravity = Gravity.CENTER
-        setTextColor(Palette.INK)
-        background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, cornerDp = 8f)
-        minimumHeight = dp(44f)
-        isClickable = true
-        isFocusable = true
-        contentDescription = "Tambah jarak kertas"
-    }
-
-    val seekBar = SeekBar(activity).apply {
-        max = 120 - 12
-        progress = (currentSpacing - 12f).toInt()
-        contentDescription = "Penggeser jarak kertas"
-    }
-
-    fun applySpacing(newSp: Float) {
-        val clamped = newSp.coerceIn(12f, 120f)
-        currentSpacing = clamped
-        spacingText.text = "${clamped.toInt()}"
-        val p = (clamped - 12f).toInt()
-        if (seekBar.progress != p) {
-            seekBar.progress = p
-        }
-        onChanged(currentStyle, currentSpacing)
-    }
-
-    minusBtn.setOnClickListener {
-        applySpacing(currentSpacing - 4f)
-    }
-
-    plusBtn.setOnClickListener {
-        applySpacing(currentSpacing + 4f)
-    }
-
-    seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-        override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
-            if (fromUser) {
-                val sp = 12f + progress.toFloat()
-                applySpacing(sp)
-            }
-        }
-        override fun onStartTrackingTouch(sb: SeekBar?) {}
-        override fun onStopTrackingTouch(sb: SeekBar?) {}
-    })
-
-    spacingContainer.addView(minusBtn, LinearLayout.LayoutParams(dp(44f), dp(44f)))
-    spacingContainer.addView(seekBar, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-        marginStart = dp(8f)
-        marginEnd = dp(8f)
-    })
-    spacingContainer.addView(spacingText, LinearLayout.LayoutParams(dp(36f), dp(44f)))
-    spacingContainer.addView(plusBtn, LinearLayout.LayoutParams(dp(44f), dp(44f)))
-
-    dialogView.addView(
-        spacingContainer,
-        LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = dp(20f)
-        }
-    )
-
-    updateStyleSelection()
 
     var dialogRef: AlertDialog? = null
 

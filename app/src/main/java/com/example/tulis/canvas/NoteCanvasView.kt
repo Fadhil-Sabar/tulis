@@ -59,7 +59,8 @@ class NoteCanvasView @JvmOverloads constructor(
     private val motionPredictor: MotionEventPredictor
 
     private var activeStrokeId: Any? = null
-    private var activeStrokeMatrix: Matrix? = null
+    private class StrokeCtx(val matrix: Matrix, val page: PageContent?)
+    private val strokeCtx = HashMap<Any, StrokeCtx>()
     private val finishedStrokeIds = ArrayList<Any>()
 
     private var gestureState = GestureState.NONE
@@ -116,6 +117,9 @@ class NoteCanvasView @JvmOverloads constructor(
     private val tapDownY = FloatArray(5)
     private val tapMaxDistancePx: Float
         get() = 10f * resources.displayMetrics.density
+    private val tapMinSeparationPx: Float
+        get() = 40f * resources.displayMetrics.density
+    private var lastStylusEventTime = Long.MIN_VALUE / 2
 
     private val flingRunnable = object : Runnable {
         override fun run() {
@@ -157,12 +161,14 @@ class NoteCanvasView @JvmOverloads constructor(
 
     private val liveInkListener = object : LiveInkListener {
         override fun onStrokeFinished(
+            id: Any,
             stroke: com.example.tulis.ink.InkStroke,
             kind: BrushKind,
             colorArgb: Int,
             sizePx: Float
         ) {
-            val inv = activeStrokeMatrix ?: Matrix()
+            val ctx = strokeCtx.remove(id)
+            val inv = ctx?.matrix ?: Matrix()
             val item = StrokeItem(
                 stroke = stroke,
                 brushKind = kind,
@@ -171,7 +177,7 @@ class NoteCanvasView @JvmOverloads constructor(
                 strokeToWorld = inv
             )
             val s = canvasLayer.stack
-            val p = if (s != null) activeTargetPage else canvasLayer.page
+            val p = if (s != null) ctx?.page else canvasLayer.page
             if (p != null) {
                 p.addStroke(item)
                 if (s != null) {
@@ -182,10 +188,8 @@ class NoteCanvasView @JvmOverloads constructor(
                 listener?.onContentChanged()
                 listener?.onHistoryChanged()
             }
-            activeTargetPage = null
-            if (finishedStrokeIds.isNotEmpty()) {
-                liveInk.clearFinished(finishedStrokeIds)
-                finishedStrokeIds.clear()
+            if (finishedStrokeIds.remove(id)) {
+                liveInk.clearFinished(listOf(id))
             }
         }
     }
@@ -370,6 +374,11 @@ class NoteCanvasView @JvmOverloads constructor(
         } else {
             canvasLayer.invalidate()
         }
+    }
+
+    private fun cancelLive(event: MotionEvent?, id: Any) {
+        strokeCtx.remove(id)
+        liveInk.cancel(event, id)
     }
 
     fun undo() {
@@ -681,10 +690,11 @@ class NoteCanvasView @JvmOverloads constructor(
         cancelFling()
         recycleVelocityTracker()
         activeStrokeId?.let { id ->
-            liveInk.cancel(null, id)
+            cancelLive(null, id)
             activeStrokeId = null
         }
         finishedStrokeIds.clear()
+        strokeCtx.clear()
         canvasLayer.trimCache()
         canvasLayer.page = null
         canvasLayer.stack = null
@@ -718,12 +728,21 @@ class NoteCanvasView @JvmOverloads constructor(
         return false
     }
 
+    override fun onHoverEvent(event: MotionEvent): Boolean {
+        if (event.pointerCount > 0 && isStylusTool(event.getToolType(0))) {
+            lastStylusEventTime = event.eventTime
+        }
+        return super.onHoverEvent(event)
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val action = event.actionMasked
         val actionIndex = event.actionIndex
 
         for (i in 0 until event.pointerCount) {
-            checkStylusDetected(event.getToolType(i))
+            val tt = event.getToolType(i)
+            checkStylusDetected(tt)
+            if (isStylusTool(tt)) lastStylusEventTime = event.eventTime
         }
 
         if (action == MotionEvent.ACTION_POINTER_UP || action == MotionEvent.ACTION_CANCEL) {
@@ -757,7 +776,9 @@ class NoteCanvasView @JvmOverloads constructor(
                 tapCandidate = false
                 tapPointersEverExceeded = false
                 tapPointerCount = 0
-                if (!isStylusActive && event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER) {
+                if (!isStylusActive && event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER &&
+                    event.eventTime - lastStylusEventTime > 500L
+                ) {
                     tapCandidate = true
                     tapStartTime = event.eventTime
                     tapPointerCount = 1
@@ -828,6 +849,14 @@ class NoteCanvasView @JvmOverloads constructor(
                                     tapDownX[i] = event.getX(i)
                                     tapDownY[i] = event.getY(i)
                                 }
+                                if (isPalmTouch(event, newPointerIndex) ||
+                                    (count == 2 && hypot(
+                                        (event.getX(1) - event.getX(0)).toDouble(),
+                                        (event.getY(1) - event.getY(0)).toDouble()
+                                    ) < tapMinSeparationPx)
+                                ) {
+                                    tapCandidate = false
+                                }
                             } else {
                                 tapCandidate = false
                                 tapPointersEverExceeded = true
@@ -874,7 +903,7 @@ class NoteCanvasView @JvmOverloads constructor(
                             if (targetEraser && gestureState == GestureState.DRAW) {
                                 motionPredictor.record(event)
                                 activeStrokeId?.let { id ->
-                                    liveInk.cancel(event, id)
+                                    cancelLive(event, id)
                                     activeStrokeId = null
                                 }
                                 startErasing(wx, wy)
@@ -920,7 +949,7 @@ class NoteCanvasView @JvmOverloads constructor(
                             if (gestureState == GestureState.DRAW) {
                                 motionPredictor.record(event)
                                 activeStrokeId?.let { id ->
-                                    liveInk.cancel(event, id)
+                                    cancelLive(event, id)
                                     activeStrokeId = null
                                 }
                             } else if (gestureState == GestureState.ERASE) {
@@ -1082,8 +1111,6 @@ class NoteCanvasView @JvmOverloads constructor(
         val currentScale = viewport.scale
         val strokeSizePx = widthWorld * currentScale
 
-        activeStrokeMatrix = inv
-
         motionPredictor.record(event)
 
         val id = liveInk.start(
@@ -1093,6 +1120,7 @@ class NoteCanvasView @JvmOverloads constructor(
             colorArgb = colorArgb,
             sizePx = strokeSizePx
         )
+        strokeCtx[id] = StrokeCtx(inv, activeTargetPage)
         activeStrokeId = id
         gestureState = GestureState.DRAW
     }
@@ -1123,7 +1151,7 @@ class NoteCanvasView @JvmOverloads constructor(
         if (gestureState == GestureState.DRAW) {
             motionPredictor.record(event)
             activeStrokeId?.let { id ->
-                liveInk.cancel(event, id)
+                cancelLive(event, id)
                 activeStrokeId = null
             }
         } else if (gestureState == GestureState.ERASE) {
@@ -1203,7 +1231,7 @@ class NoteCanvasView @JvmOverloads constructor(
                         finishedStrokeIds.add(id)
                         liveInk.finish(event, activePointerId, id)
                     } else {
-                        liveInk.cancel(event, id)
+                        cancelLive(event, id)
                     }
                     activeStrokeId = null
                 }
@@ -1271,7 +1299,7 @@ class NoteCanvasView @JvmOverloads constructor(
             GestureState.DRAW -> {
                 motionPredictor.record(event)
                 activeStrokeId?.let { id ->
-                    liveInk.cancel(event, id)
+                    cancelLive(event, id)
                     activeStrokeId = null
                 }
             }

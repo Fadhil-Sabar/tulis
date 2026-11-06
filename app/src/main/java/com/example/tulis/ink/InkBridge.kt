@@ -21,7 +21,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 
 interface LiveInkListener {
-    fun onStrokeFinished(stroke: Stroke, kind: BrushKind, colorArgb: Int, sizePx: Float)
+    fun onStrokeFinished(id: Any, stroke: Stroke, kind: BrushKind, colorArgb: Int, sizePx: Float)
 }
 
 class LiveInk(val view: View) {
@@ -45,7 +45,7 @@ class LiveInk(val view: View) {
                     val kind = active?.kind ?: BrushKind.PEN
                     val colorArgb = active?.colorArgb ?: stroke.brush.colorLong.toInt()
                     val sizePx = active?.sizePx ?: stroke.brush.size
-                    currentListener?.onStrokeFinished(stroke, kind, colorArgb, sizePx)
+                    currentListener?.onStrokeFinished(id, stroke, kind, colorArgb, sizePx)
                 }
             }
         })

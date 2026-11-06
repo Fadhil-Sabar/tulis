@@ -51,7 +51,6 @@ import com.example.tulis.ui.SketchSlider
 import com.example.tulis.ui.UiPrefs
 import com.example.tulis.ui.UndoBar
 import com.example.tulis.ui.showPaperDialog
-import com.example.tulis.ui.showUiSettingsDialog
 
 class EditorActivity : Activity() {
 
@@ -1156,32 +1155,6 @@ class EditorActivity : Activity() {
             marginEnd = dp(12f)
         })
 
-        val btnSettings = FrameLayout(this).apply {
-            background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, round = true)
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Pengaturan tampilan"
-            setOnClickListener {
-                showUiSettingsDialog(this@EditorActivity) {
-                    flushAutosave(immediateThumb = true)
-                    recreate()
-                }
-            }
-        }
-        val settingsIcon = IconView(this).apply {
-            showSelection = false
-            isClickable = false
-            isFocusable = false
-            icon = Icon.SETTINGS
-            tint = Palette.INK
-            strokeWidthDp = 2f
-            contentDescription = "Pengaturan tampilan"
-        }
-        btnSettings.addView(settingsIcon, FrameLayout.LayoutParams(dp(26f), dp(26f), Gravity.CENTER))
-        rightGroup.addView(btnSettings, LinearLayout.LayoutParams(dp(52f), dp(52f)).apply {
-            marginEnd = dp(12f)
-        })
-
         val undoRedoPill = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -2017,11 +1990,9 @@ class EditorActivity : Activity() {
             max = initialRange[1],
             step = initialRange[2],
             initial = getWidthForTool(activeTool),
-            format = { v ->
-                if (widthRangeForTool(activeTool)[2] < 1f) String.format(java.util.Locale.US, "%.1f", v) else "${v.toInt()}"
-            },
             description = "Ketebalan",
-            showButtons = false,
+            showButtons = true,
+            compact = true,
             onChange = { v ->
                 setWidthForTool(activeTool, v)
                 activeStrokeWidth = v
@@ -2800,11 +2771,9 @@ class EditorActivity : Activity() {
             max = range[1],
             step = range[2],
             initial = getWidthForTool(t),
-            format = { v ->
-                if (range[2] < 1f) String.format(java.util.Locale.US, "%.1f", v) else "${v.toInt()}"
-            },
             description = "Ketebalan",
-            showButtons = false,
+            showButtons = true,
+            compact = true,
             onChange = { v ->
                 setWidthForTool(t, v)
                 activeStrokeWidth = v
