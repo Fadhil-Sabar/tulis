@@ -225,6 +225,12 @@ class NotebookRepository(private val context: Context) {
         }
     }
 
+    fun loadPageSync(id: String, index: Int): PageContent {
+        val file = pageFile(id, index)
+        if (!file.exists()) return PageContent()
+        return FileInputStream(file).use { PageCodec.read(it) }
+    }
+
     fun loadPage(id: String, index: Int, cb: (PageContent) -> Unit) {
         executor.execute {
             val file = pageFile(id, index)

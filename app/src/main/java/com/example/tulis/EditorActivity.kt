@@ -31,6 +31,9 @@ import android.widget.TextView
 import android.widget.Toast
 import com.example.tulis.canvas.CanvasListener
 import com.example.tulis.canvas.NoteCanvasView
+import com.example.tulis.export.ExportJob
+import com.example.tulis.export.ExportOptions
+import com.example.tulis.export.Exporter
 import com.example.tulis.model.NoteMode
 import com.example.tulis.model.NotebookMeta
 import com.example.tulis.model.PageContent
@@ -41,6 +44,7 @@ import com.example.tulis.model.pageW
 import com.example.tulis.model.TextItem
 import com.example.tulis.model.Tool
 import com.example.tulis.storage.NotebookRepository
+import com.example.tulis.ui.ExportProgressDialog
 import com.example.tulis.ui.Fonts
 import com.example.tulis.ui.Icon
 import com.example.tulis.ui.IconView
@@ -50,6 +54,7 @@ import com.example.tulis.ui.SketchDrawable
 import com.example.tulis.ui.SketchSlider
 import com.example.tulis.ui.UiPrefs
 import com.example.tulis.ui.UndoBar
+import com.example.tulis.ui.showExportDialog
 import com.example.tulis.ui.showPaperDialog
 
 class EditorActivity : Activity() {
@@ -58,6 +63,7 @@ class EditorActivity : Activity() {
 
     companion object {
         const val EXTRA_ID = "id"
+        private const val REQ_EXPORT = 7001
     }
 
     private lateinit var repo: NotebookRepository
@@ -1027,9 +1033,72 @@ class EditorActivity : Activity() {
             marginStart = dp(2f)
         })
 
+        bar.addView(buildPaperButton(44f, 24f, m), LinearLayout.LayoutParams(dp(44f), dp(44f)).apply {
+            marginEnd = dp(6f)
+        })
+        bar.addView(buildExportButton(44f, 24f, m), LinearLayout.LayoutParams(dp(44f), dp(44f)).apply {
+            marginEnd = dp(6f)
+        })
         bar.addView(undoRedoPill, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         return bar
+    }
+
+    private fun buildPaperButton(sizeDp: Float, iconDp: Float, m: NotebookMeta): FrameLayout {
+        val btn = FrameLayout(this).apply {
+            background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, round = true)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Kertas"
+            setOnClickListener {
+                val paged = m.mode == NoteMode.PAGED
+                showPaperDialog(
+                    this@EditorActivity,
+                    m.paperStyle,
+                    m.paperSpacing,
+                    if (paged) m.orientation else null,
+                    if (paged) { o -> confirmOrientationChange(o) } else null
+                ) { s, sp ->
+                    m.paperStyle = s
+                    m.paperSpacing = sp
+                    canvasView.setPaper(s, sp)
+                    isMetaDirty = true
+                    saveMeta()
+                }
+            }
+        }
+        val icon = IconView(this).apply {
+            showSelection = false
+            isClickable = false
+            isFocusable = false
+            icon = Icon.PAPER
+            tint = Palette.INK
+            strokeWidthDp = 2f
+            contentDescription = "Kertas"
+        }
+        btn.addView(icon, FrameLayout.LayoutParams(dp(iconDp), dp(iconDp), Gravity.CENTER))
+        return btn
+    }
+
+    private fun buildExportButton(sizeDp: Float, iconDp: Float, m: NotebookMeta): FrameLayout {
+        val btn = FrameLayout(this).apply {
+            background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, round = true)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Ekspor"
+            setOnClickListener { showExportDialog(this@EditorActivity, m.mode == NoteMode.PAGED) { startExport(it) } }
+        }
+        val icon = IconView(this).apply {
+            showSelection = false
+            isClickable = false
+            isFocusable = false
+            icon = Icon.EXPORT
+            tint = Palette.INK
+            strokeWidthDp = 2f
+            contentDescription = "Ekspor"
+        }
+        btn.addView(icon, FrameLayout.LayoutParams(dp(iconDp), dp(iconDp), Gravity.CENTER))
+        return btn
     }
 
     private fun buildTabletTopBar(m: NotebookMeta): LinearLayout {
@@ -1119,39 +1188,10 @@ class EditorActivity : Activity() {
             })
         }
 
-        val btnPaper = FrameLayout(this).apply {
-            background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, round = true)
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Kertas"
-            setOnClickListener {
-                val paged = m.mode == NoteMode.PAGED
-                showPaperDialog(
-                    this@EditorActivity,
-                    m.paperStyle,
-                    m.paperSpacing,
-                    if (paged) m.orientation else null,
-                    if (paged) { o -> confirmOrientationChange(o) } else null
-                ) { s, sp ->
-                    m.paperStyle = s
-                    m.paperSpacing = sp
-                    canvasView.setPaper(s, sp)
-                    isMetaDirty = true
-                    saveMeta()
-                }
-            }
-        }
-        val paperIcon = IconView(this).apply {
-            showSelection = false
-            isClickable = false
-            isFocusable = false
-            icon = Icon.PAPER
-            tint = Palette.INK
-            strokeWidthDp = 2f
-            contentDescription = "Kertas"
-        }
-        btnPaper.addView(paperIcon, FrameLayout.LayoutParams(dp(26f), dp(26f), Gravity.CENTER))
-        rightGroup.addView(btnPaper, LinearLayout.LayoutParams(dp(52f), dp(52f)).apply {
+        rightGroup.addView(buildPaperButton(52f, 26f, m), LinearLayout.LayoutParams(dp(52f), dp(52f)).apply {
+            marginEnd = dp(12f)
+        })
+        rightGroup.addView(buildExportButton(52f, 26f, m), LinearLayout.LayoutParams(dp(52f), dp(52f)).apply {
             marginEnd = dp(12f)
         })
 
@@ -3559,6 +3599,105 @@ class EditorActivity : Activity() {
         saveMeta()
     }
 
+
+    private var pendingExport: ExportOptions? = null
+    private var exportCancel: java.util.concurrent.atomic.AtomicBoolean? = null
+
+    private fun startExport(opts: ExportOptions) {
+        val m = meta ?: return
+        pendingExport = opts
+        val safeTitle = m.title.replace(Regex("[/\\\\:*?\"<>|]"), "_").trim().ifEmpty { "Tulis" }
+        val isPdf = opts.format == com.example.tulis.export.ExportFormat.PDF
+        val suffix = if (!isPdf && m.mode == NoteMode.PAGED) "_hal${currentPageIndex + 1}" else ""
+        val intent = android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(android.content.Intent.CATEGORY_OPENABLE)
+            type = if (isPdf) "application/pdf" else "image/png"
+            putExtra(android.content.Intent.EXTRA_TITLE, safeTitle + suffix + if (isPdf) ".pdf" else ".png")
+        }
+        try {
+            @Suppress("DEPRECATION")
+            startActivityForResult(intent, REQ_EXPORT)
+        } catch (_: Exception) {
+            pendingExport = null
+            Toast.makeText(this, "Tidak ada aplikasi penyimpanan file", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_EXPORT) return
+        val opts = pendingExport
+        pendingExport = null
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null || opts == null) return
+        runExport(uri, opts)
+    }
+
+    private fun runExport(uri: android.net.Uri, opts: ExportOptions) {
+        val m = meta ?: return
+        flushAutosave(immediateThumb = false)
+
+        val snapshots = HashMap<Int, PageContent>()
+        val indices: List<Int>
+        var infinitePage: PageContent? = null
+        if (m.mode == NoteMode.PAGED) {
+            val s = pageStack ?: return
+            for (i in s.residentIndices()) {
+                s.get(i)?.let { snapshots[i] = it.snapshot() }
+            }
+            indices = if (opts.allPages) (0 until m.pageCount).toList() else listOf(currentPageIndex)
+        } else {
+            infinitePage = canvasView.getPage()?.snapshot()
+            indices = listOf(0)
+        }
+
+        val job = ExportJob(
+            notebookId, m.mode, m.orientation, m.paperStyle, m.paperSpacing,
+            opts, indices, snapshots, infinitePage
+        )
+        val cancel = java.util.concurrent.atomic.AtomicBoolean(false)
+        exportCancel = cancel
+        val progressDialog = ExportProgressDialog(this) { cancel.set(true) }
+        val alive = { !isFinishing && !isDestroyed }
+
+        repo.afterPending {
+            Thread {
+                var error: String? = null
+                try {
+                    val out = contentResolver.openOutputStream(uri, "w") ?: throw java.io.IOException("Tidak bisa menulis file")
+                    out.use {
+                        Exporter.run(job, it, cancel, { idx -> repo.loadPageSync(notebookId, idx) }) { n, total ->
+                            mainHandler.post { if (alive()) progressDialog.update("Halaman $n dari $total") }
+                        }
+                    }
+                } catch (e: com.example.tulis.export.ExportCancelled) {
+                    error = ""
+                } catch (e: Throwable) {
+                    error = e.message ?: "Ekspor gagal"
+                }
+                val err = error
+                if (err != null) {
+                    try {
+                        android.provider.DocumentsContract.deleteDocument(contentResolver, uri)
+                    } catch (_: Throwable) {
+                    }
+                }
+                mainHandler.post {
+                    exportCancel = null
+                    if (!alive()) return@post
+                    progressDialog.dismiss()
+                    val msg = when {
+                        err == null -> "Ekspor selesai"
+                        err.isEmpty() -> "Ekspor dibatalkan"
+                        else -> "Ekspor gagal: $err"
+                    }
+                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                }
+            }.start()
+        }
+    }
+
     private fun saveMeta() {
         val m = meta ?: return
         if (isMetaDirty) {
@@ -3678,6 +3817,7 @@ class EditorActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        exportCancel?.set(true)
         optionsPopup?.dismiss()
         thumbExecutor.shutdown()
         thumbMemoryCache.evictAll()
