@@ -442,8 +442,6 @@ fun showPaperDialog(
         spacingSlider.visibility = visibility
     }
 
-    updateStyleSelection()
-
     for (item in styles) {
         val chip = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -492,6 +490,8 @@ fun showPaperDialog(
             }
         )
     }
+
+    updateStyleSelection()
 
     var dialogRef: AlertDialog? = null
 
