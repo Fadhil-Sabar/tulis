@@ -13,6 +13,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
+import kotlin.math.roundToInt
 import com.example.tulis.model.PaperStyle
 
 fun showUiSettingsDialog(activity: Activity, onApplied: () -> Unit) {
@@ -67,73 +68,31 @@ fun showUiSettingsDialog(activity: Activity, onApplied: () -> Unit) {
         }
     )
 
-    val fontOptions = listOf(
-        0.85f to "Kecil",
-        1.0f to "Normal",
-        1.15f to "Besar",
-        1.3f to "Lebih besar",
-        1.5f to "Terbesar"
+    val fontSlider = SketchSlider(
+        context = activity,
+        min = 0.8f,
+        max = 1.6f,
+        step = 0.05f,
+        initial = currentFont,
+        format = { v -> "${(v * 100f).roundToInt()}%" },
+        description = "Ukuran font",
+        showButtons = true,
+        onChange = { v ->
+            currentFont = v
+            changed = true
+        },
+        onCommit = { v ->
+            currentFont = v
+            changed = true
+            UiPrefs.setFontScale(activity, v)
+        }
     )
-
-    val fontChipsLayout = LinearLayout(activity).apply {
-        orientation = LinearLayout.HORIZONTAL
-    }
-    val fontScroll = android.widget.HorizontalScrollView(activity).apply {
-        isHorizontalScrollBarEnabled = false
-        addView(fontChipsLayout, ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-    }
     dialogView.addView(
-        fontScroll,
+        fontSlider,
         LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             bottomMargin = dp(16f)
         }
     )
-
-    val fontViews = mutableListOf<TextView>()
-    fun updateFontChips() {
-        for ((idx, opt) in fontOptions.withIndex()) {
-            val tv = fontViews[idx]
-            val isSelected = Math.abs(currentFont - opt.first) < 0.01f
-            if (isSelected) {
-                tv.background = SketchDrawable(fill = Palette.INK, stroke = Palette.INK, cornerDp = 8f)
-                tv.setTextColor(Palette.PAPER)
-            } else {
-                tv.background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK_SOFT, cornerDp = 8f)
-                tv.setTextColor(Palette.INK)
-            }
-        }
-    }
-
-    for (opt in fontOptions) {
-        val chip = TextView(activity).apply {
-            text = opt.second
-            textSize = 14f
-            typeface = Fonts.ui(context)
-            gravity = Gravity.CENTER
-            minimumHeight = dp(44f)
-            val hp = dp(12f)
-            setPadding(hp, 0, hp, 0)
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Ukuran font: ${opt.second}"
-            setOnClickListener {
-                if (Math.abs(currentFont - opt.first) >= 0.01f) {
-                    currentFont = opt.first
-                    UiPrefs.setFontScale(activity, currentFont)
-                    changed = true
-                    updateFontChips()
-                }
-            }
-        }
-        fontViews.add(chip)
-        fontChipsLayout.addView(
-            chip,
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                marginEnd = dp(8f)
-            }
-        )
-    }
-    updateFontChips()
 
     val iconLabel = TextView(activity).apply {
         text = "Zoom tampilan (tombol, ikon, teks)"
@@ -148,72 +107,31 @@ fun showUiSettingsDialog(activity: Activity, onApplied: () -> Unit) {
         }
     )
 
-    val iconOptions = listOf(
-        0.85f to "Kecil",
-        1.0f to "Normal",
-        1.15f to "Besar",
-        1.3f to "Terbesar"
+    val iconSlider = SketchSlider(
+        context = activity,
+        min = 0.75f,
+        max = 1.4f,
+        step = 0.05f,
+        initial = currentIcon,
+        format = { v -> "${(v * 100f).roundToInt()}%" },
+        description = "Zoom tampilan (tombol, ikon, teks)",
+        showButtons = true,
+        onChange = { v ->
+            currentIcon = v
+            changed = true
+        },
+        onCommit = { v ->
+            currentIcon = v
+            changed = true
+            UiPrefs.setIconScale(activity, v)
+        }
     )
-
-    val iconChipsLayout = LinearLayout(activity).apply {
-        orientation = LinearLayout.HORIZONTAL
-    }
-    val iconScroll = android.widget.HorizontalScrollView(activity).apply {
-        isHorizontalScrollBarEnabled = false
-        addView(iconChipsLayout, ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-    }
     dialogView.addView(
-        iconScroll,
+        iconSlider,
         LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             bottomMargin = dp(16f)
         }
     )
-
-    val iconViews = mutableListOf<TextView>()
-    fun updateIconChips() {
-        for ((idx, opt) in iconOptions.withIndex()) {
-            val tv = iconViews[idx]
-            val isSelected = Math.abs(currentIcon - opt.first) < 0.01f
-            if (isSelected) {
-                tv.background = SketchDrawable(fill = Palette.INK, stroke = Palette.INK, cornerDp = 8f)
-                tv.setTextColor(Palette.PAPER)
-            } else {
-                tv.background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK_SOFT, cornerDp = 8f)
-                tv.setTextColor(Palette.INK)
-            }
-        }
-    }
-
-    for (opt in iconOptions) {
-        val chip = TextView(activity).apply {
-            text = opt.second
-            textSize = 14f
-            typeface = Fonts.ui(context)
-            gravity = Gravity.CENTER
-            minimumHeight = dp(44f)
-            val hp = dp(12f)
-            setPadding(hp, 0, hp, 0)
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Zoom tampilan: ${opt.second}"
-            setOnClickListener {
-                if (Math.abs(currentIcon - opt.first) >= 0.01f) {
-                    currentIcon = opt.first
-                    UiPrefs.setIconScale(activity, currentIcon)
-                    changed = true
-                    updateIconChips()
-                }
-            }
-        }
-        iconViews.add(chip)
-        iconChipsLayout.addView(
-            chip,
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                marginEnd = dp(8f)
-            }
-        )
-    }
-    updateIconChips()
 
     val minimapRow = LinearLayout(activity).apply {
         orientation = LinearLayout.HORIZONTAL

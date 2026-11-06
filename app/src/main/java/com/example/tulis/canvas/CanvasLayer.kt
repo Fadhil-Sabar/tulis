@@ -70,8 +70,17 @@ class CanvasLayer(context: Context) : View(context) {
         }
     }
 
-    val pageW: Float = 1000f
-    val pageH: Float = 1414f
+    var pageW: Float = 1000f
+        private set
+    var pageH: Float = 1414f
+        private set
+
+    fun setPageSize(w: Float, h: Float) {
+        pageW = w
+        pageH = h
+        pageWorldRect.set(0f, 0f, w, h)
+        invalidate()
+    }
 
     private val density: Float = context.resources.displayMetrics.density
 
@@ -125,7 +134,7 @@ class CanvasLayer(context: Context) : View(context) {
     private val pageMatrix = Matrix()
     private val visibleWorldRect = RectF()
     private val strokeBoundsRect = RectF()
-    private val pageWorldRect = RectF(0f, 0f, 1000f, 1414f)
+    private val pageWorldRect = RectF(0f, 0f, pageW, pageH)
     private val pagedItemWorldRect = RectF()
     private val pageScreenRect = RectF()
     private val pageShadowRect = RectF()

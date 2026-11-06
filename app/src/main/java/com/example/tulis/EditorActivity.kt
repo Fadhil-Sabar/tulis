@@ -34,7 +34,10 @@ import com.example.tulis.canvas.NoteCanvasView
 import com.example.tulis.model.NoteMode
 import com.example.tulis.model.NotebookMeta
 import com.example.tulis.model.PageContent
+import com.example.tulis.model.PageOrientation
 import com.example.tulis.model.PageStack
+import com.example.tulis.model.pageH
+import com.example.tulis.model.pageW
 import com.example.tulis.model.TextItem
 import com.example.tulis.model.Tool
 import com.example.tulis.storage.NotebookRepository
@@ -44,6 +47,7 @@ import com.example.tulis.ui.IconView
 import com.example.tulis.ui.MinimapView
 import com.example.tulis.ui.Palette
 import com.example.tulis.ui.SketchDrawable
+import com.example.tulis.ui.SketchSlider
 import com.example.tulis.ui.UiPrefs
 import com.example.tulis.ui.UndoBar
 import com.example.tulis.ui.showPaperDialog
@@ -93,7 +97,7 @@ class EditorActivity : Activity() {
     private var tabletToolDock: ToolDock = ToolDock.TOP
     private var tabletThumbListContainer: LinearLayout? = null
     private var tabletSideColorViews = mutableMapOf<Int, View>()
-    private var tabletSideThickBtns = mutableListOf<View>()
+    private var tabletSideSlider: SketchSlider? = null
     private var tabletSideSwitchBtn: FrameLayout? = null
     private var tabletSideKnob: View? = null
     private var phoneSwitchBtn: FrameLayout? = null
@@ -113,9 +117,9 @@ class EditorActivity : Activity() {
     private var activeStrokeWidth: Float = 4f
     private var fingerCanDraw: Boolean = true
 
-    private var penWidthIndex = 1
-    private var markerWidthIndex = 1
-    private var highlighterWidthIndex = 1
+    private var penWidth = 4f
+    private var markerWidth = 8f
+    private var highlighterWidth = 20f
 
     private var penColor = Palette.INK
     private var markerColor = Palette.INK
@@ -166,6 +170,9 @@ class EditorActivity : Activity() {
 
         val prefs = getSharedPreferences("tulis_prefs", MODE_PRIVATE)
         fingerCanDraw = prefs.getBoolean("finger_draws", true)
+        penWidth = prefs.getFloat("width_pen", 4f).coerceIn(1f, 16f)
+        markerWidth = prefs.getFloat("width_marker", 8f).coerceIn(2f, 28f)
+        highlighterWidth = prefs.getFloat("width_highlighter", 20f).coerceIn(6f, 48f)
         isPanelCollapsed = prefs.getBoolean("panel_collapsed", false)
         isRailHidden = prefs.getBoolean("rail_hidden", false)
         tabletToolDock = try {
@@ -180,7 +187,7 @@ class EditorActivity : Activity() {
             0
         }
 
-        activeStrokeWidth = getWidthForTool(activeTool, getWidthIndexForTool(activeTool))
+        activeStrokeWidth = getWidthForTool(activeTool)
 
         buildUi(currentMeta)
         applyToolSelection(Tool.PEN)
@@ -190,8 +197,11 @@ class EditorActivity : Activity() {
             updateZoomIndicator()
             loadPage(currentPageIndex)
         } else {
-            val s = PageStack(currentMeta.pageCount, 1000f, 1414f, PageStack.GAP)
+            val pw = currentMeta.orientation.pageW
+            val ph = currentMeta.orientation.pageH
+            val s = PageStack(currentMeta.pageCount, pw, ph, PageStack.GAP)
             pageStack = s
+            canvasView.setPageSize(pw, ph)
             canvasView.setStack(s)
             val windowStart = (currentPageIndex - 1).coerceAtLeast(0)
             val windowEnd = (currentPageIndex + 1).coerceAtMost(currentMeta.pageCount - 1)
@@ -221,7 +231,7 @@ class EditorActivity : Activity() {
         toolButtons.clear()
         toolDots.clear()
         tabletSideColorViews.clear()
-        tabletSideThickBtns.clear()
+        tabletSideSlider = null
         tabletPageRail = null
         tabletSidePanel = null
         tabletToolPanel = null
@@ -265,42 +275,32 @@ class EditorActivity : Activity() {
         return (baseSp * scale) / resources.configuration.fontScale
     }
 
-    private fun getWidthIndexForTool(t: Tool): Int {
+    private fun widthRangeForTool(t: Tool): FloatArray {
         return when (t) {
-            Tool.PEN -> penWidthIndex
-            Tool.MARKER -> markerWidthIndex
-            Tool.HIGHLIGHTER -> highlighterWidthIndex
-            else -> 1
+            Tool.PEN -> floatArrayOf(1f, 16f, 0.5f, 4f)
+            Tool.MARKER -> floatArrayOf(2f, 28f, 1f, 8f)
+            Tool.HIGHLIGHTER -> floatArrayOf(6f, 48f, 1f, 20f)
+            else -> floatArrayOf(1f, 16f, 0.5f, 4f)
         }
     }
 
-    private fun setWidthIndexForTool(t: Tool, index: Int) {
-        when (t) {
-            Tool.PEN -> penWidthIndex = index
-            Tool.MARKER -> markerWidthIndex = index
-            Tool.HIGHLIGHTER -> highlighterWidthIndex = index
-            else -> {}
-        }
-    }
-
-    private fun getWidthForTool(t: Tool, index: Int): Float {
+    private fun getWidthForTool(t: Tool): Float {
         return when (t) {
-            Tool.PEN -> when (index) {
-                0 -> 2f
-                1 -> 4f
-                else -> 8f
-            }
-            Tool.MARKER -> when (index) {
-                0 -> 4f
-                1 -> 8f
-                else -> 14f
-            }
-            Tool.HIGHLIGHTER -> when (index) {
-                0 -> 12f
-                1 -> 20f
-                else -> 32f
-            }
+            Tool.PEN -> penWidth
+            Tool.MARKER -> markerWidth
+            Tool.HIGHLIGHTER -> highlighterWidth
             else -> 4f
+        }
+    }
+
+    private fun setWidthForTool(t: Tool, w: Float) {
+        val range = widthRangeForTool(t)
+        val clamped = w.coerceIn(range[0], range[1])
+        when (t) {
+            Tool.PEN -> penWidth = clamped
+            Tool.MARKER -> markerWidth = clamped
+            Tool.HIGHLIGHTER -> highlighterWidth = clamped
+            else -> {}
         }
     }
 
@@ -1644,7 +1644,11 @@ class EditorActivity : Activity() {
 
             loadPageThumbnailAsync(i, thumbImg, numPlaceholder)
 
-            cardContainer.addView(thumbCard, FrameLayout.LayoutParams(dp(96f), dp(136f)))
+            val landscapeThumb = m.orientation == PageOrientation.LANDSCAPE
+            cardContainer.addView(
+                thumbCard,
+                FrameLayout.LayoutParams(if (landscapeThumb) dp(136f) else dp(96f), if (landscapeThumb) dp(96f) else dp(136f))
+            )
             itemContainer.addView(cardContainer, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
             val numBadge = TextView(this).apply {
@@ -1765,7 +1769,7 @@ class EditorActivity : Activity() {
 
     private fun buildTabletSidePanel(m: NotebookMeta): View {
         tabletSideColorViews.clear()
-        tabletSideThickBtns.clear()
+        tabletSideSlider = null
 
         val rootContainer = FrameLayout(this)
 
@@ -1969,11 +1973,6 @@ class EditorActivity : Activity() {
                             }
                         }
                     }
-                    for (b in tabletSideThickBtns) {
-                        b.findViewById<View>(202)?.let { dot ->
-                            (dot.background as? GradientDrawable)?.setColor(c)
-                        }
-                    }
                     updateTabletCollapsedStrip()
                 }
             }
@@ -2002,75 +2001,41 @@ class EditorActivity : Activity() {
             bottomMargin = dp(8f)
         })
 
-        val thickRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-
-        val currentWIdx = getWidthIndexForTool(activeTool)
-        val dotSizes = listOf(6f, 12f, 20f)
-        val thickNames = listOf("Ketebalan tipis", "Ketebalan sedang", "Ketebalan tebal")
-
-        for (i in 0..2) {
-            val isSel = i == currentWIdx
-            val wBtn = FrameLayout(this).apply {
-                background = if (isSel) {
-                    SketchDrawable(fill = Palette.YELLOW, stroke = Palette.INK, variant = 3)
-                } else {
-                    SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, variant = 2)
-                }
-                isClickable = true
-                isFocusable = true
-                contentDescription = thickNames[i]
-                isSelected = isSel
-                if (android.os.Build.VERSION.SDK_INT >= 30) {
-                    stateDescription = if (isSel) "Dipilih" else "Tidak dipilih"
-                }
-            }
-
-            val dotView = View(this).apply {
-                val dotBg = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(getColorForTool(activeTool))
-                }
-                background = dotBg
-            }
-            dotView.id = 202
-            val dSize = dp(dotSizes[i])
-            wBtn.addView(dotView, FrameLayout.LayoutParams(dSize, dSize, Gravity.CENTER))
-
-            wBtn.setOnClickListener {
-                setWidthIndexForTool(activeTool, i)
-                val w = getWidthForTool(activeTool, i)
-                activeStrokeWidth = w
-                canvasView.widthWorld = w
+        val initialRange = widthRangeForTool(activeTool)
+        val sideSlider = SketchSlider(
+            context = this,
+            min = initialRange[0],
+            max = initialRange[1],
+            step = initialRange[2],
+            initial = getWidthForTool(activeTool),
+            format = { v ->
+                if (widthRangeForTool(activeTool)[2] < 1f) String.format(java.util.Locale.US, "%.1f", v) else "${v.toInt()}"
+            },
+            description = "Ketebalan",
+            showButtons = false,
+            onChange = { v ->
+                setWidthForTool(activeTool, v)
+                activeStrokeWidth = v
+                canvasView.widthWorld = v
                 tabletStrokePreview?.let {
-                    (it as WavyPreviewView).strokeWidthWorld = w
-                }
-
-                for (j in tabletSideThickBtns.indices) {
-                    val b = tabletSideThickBtns[j]
-                    val sel = j == i
-                    b.isSelected = sel
-                    if (android.os.Build.VERSION.SDK_INT >= 30) {
-                        b.stateDescription = if (sel) "Dipilih" else "Tidak dipilih"
-                    }
-                    if (sel) {
-                        b.background = SketchDrawable(fill = Palette.YELLOW, stroke = Palette.INK, variant = 3)
-                    } else {
-                        b.background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, variant = 2)
-                    }
+                    (it as WavyPreviewView).strokeWidthWorld = v
                 }
                 updateTabletCollapsedStrip()
+            },
+            onCommit = { v ->
+                val key = when (activeTool) {
+                    Tool.PEN -> "width_pen"
+                    Tool.MARKER -> "width_marker"
+                    Tool.HIGHLIGHTER -> "width_highlighter"
+                    else -> null
+                }
+                if (key != null) {
+                    getSharedPreferences("tulis_prefs", MODE_PRIVATE).edit().putFloat(key, v).apply()
+                }
             }
-            tabletSideThickBtns.add(wBtn)
-
-            val wLp = LinearLayout.LayoutParams(0, dp(48f), 1f).apply {
-                if (i > 0) marginStart = dp(10f)
-            }
-            thickRow.addView(wBtn, wLp)
-        }
-        fullPanel.addView(thickRow)
+        )
+        tabletSideSlider = sideSlider
+        fullPanel.addView(sideSlider, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         val spacer = View(this)
         fullPanel.addView(spacer, LinearLayout.LayoutParams(0, 0, 1f))
@@ -2193,8 +2158,8 @@ class EditorActivity : Activity() {
             }
             background = dotBg
         }
-        val curThickIdx = getWidthIndexForTool(activeTool)
-        val curDotSize = dp(dotSizes[curThickIdx])
+        val curDotDp = (getWidthForTool(activeTool) * 1.2f).coerceIn(5f, 24f)
+        val curDotSize = dp(curDotDp)
         stripThickContainer.addView(stripDot, FrameLayout.LayoutParams(curDotSize, curDotSize, Gravity.CENTER))
         collapsedStrip.addView(stripThickContainer, LinearLayout.LayoutParams(dp(36f), dp(36f)))
 
@@ -2211,12 +2176,11 @@ class EditorActivity : Activity() {
             it.color = curC
             it.invalidate()
         }
-        val dotSizes = listOf(6f, 12f, 20f)
-        val curThickIdx = getWidthIndexForTool(activeTool)
+        val curDotDp = (getWidthForTool(activeTool) * 1.2f).coerceIn(5f, 24f)
         val dot = strip.findViewById<View>(303)
         dot?.let {
             (it.background as? GradientDrawable)?.setColor(curC)
-            val dSize = dp(dotSizes[curThickIdx])
+            val dSize = dp(curDotDp)
             val lp = it.layoutParams as? FrameLayout.LayoutParams
             if (lp != null) {
                 lp.width = dSize
@@ -2275,13 +2239,18 @@ class EditorActivity : Activity() {
     private fun updateTabletSidePanel() {
         tabletSideTitle?.text = getToolName(activeTool)
         val currentC = getColorForTool(activeTool)
-        val currentWIdx = getWidthIndexForTool(activeTool)
-        val currentW = getWidthForTool(activeTool, currentWIdx)
+        val currentW = getWidthForTool(activeTool)
 
         tabletStrokePreview?.let {
             val w = it as WavyPreviewView
             w.strokeColor = currentC
             w.strokeWidthWorld = currentW
+        }
+
+        tabletSideSlider?.let { slider ->
+            val range = widthRangeForTool(activeTool)
+            slider.setRange(range[0], range[1], range[2])
+            slider.value = currentW
         }
 
         for ((colorVal, btn) in tabletSideColorViews) {
@@ -2295,22 +2264,6 @@ class EditorActivity : Activity() {
             }
         }
 
-        for (i in tabletSideThickBtns.indices) {
-            val b = tabletSideThickBtns[i]
-            val isSel = i == currentWIdx
-            b.isSelected = isSel
-            if (android.os.Build.VERSION.SDK_INT >= 30) {
-                b.stateDescription = if (isSel) "Dipilih" else "Tidak dipilih"
-            }
-            if (isSel) {
-                b.background = SketchDrawable(fill = Palette.YELLOW, stroke = Palette.INK, variant = 3)
-            } else {
-                b.background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, variant = 2)
-            }
-            b.findViewById<View>(202)?.let { dot ->
-                (dot.background as? GradientDrawable)?.setColor(currentC)
-            }
-        }
         updateTabletCollapsedStrip()
     }
 
@@ -2555,7 +2508,7 @@ class EditorActivity : Activity() {
     private fun applyToolSelection(t: Tool) {
         activeTool = t
         activeColor = getColorForTool(t)
-        activeStrokeWidth = getWidthForTool(t, getWidthIndexForTool(t))
+        activeStrokeWidth = getWidthForTool(t)
 
         canvasView.tool = t
         canvasView.colorArgb = activeColor
@@ -2771,7 +2724,6 @@ class EditorActivity : Activity() {
         }
 
         val colorViews = mutableMapOf<Int, View>()
-        val thickBtns = mutableListOf<View>()
         val currentToolColor = getColorForTool(t)
 
         for (c in colors) {
@@ -2810,11 +2762,6 @@ class EditorActivity : Activity() {
                             }
                         }
                     }
-                    for (b in thickBtns) {
-                        b.findViewById<View>(202)?.let { dot ->
-                            (dot.background as? GradientDrawable)?.setColor(c)
-                        }
-                    }
                 }
             }
             colorViews[c] = cBtn
@@ -2837,71 +2784,39 @@ class EditorActivity : Activity() {
             bottomMargin = dp(6f)
         })
 
-        val thickRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-
-        val currentWIdx = getWidthIndexForTool(t)
-        val dotSizes = listOf(6f, 12f, 20f)
-        val thickNames = listOf("Ketebalan tipis", "Ketebalan sedang", "Ketebalan tebal")
-
-        for (i in 0..2) {
-            val isSel = i == currentWIdx
-            val wBtn = FrameLayout(this).apply {
-                background = if (isSel) {
-                    SketchDrawable(fill = Palette.YELLOW, stroke = Palette.INK, variant = 3)
-                } else {
-                    SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, variant = 2)
+        val range = widthRangeForTool(t)
+        val thickSlider = SketchSlider(
+            context = this,
+            min = range[0],
+            max = range[1],
+            step = range[2],
+            initial = getWidthForTool(t),
+            format = { v ->
+                if (range[2] < 1f) String.format(java.util.Locale.US, "%.1f", v) else "${v.toInt()}"
+            },
+            description = "Ketebalan",
+            showButtons = false,
+            onChange = { v ->
+                setWidthForTool(t, v)
+                activeStrokeWidth = v
+                canvasView.widthWorld = v
+                tabletStrokePreview?.let {
+                    (it as WavyPreviewView).strokeWidthWorld = v
                 }
-                isClickable = true
-                isFocusable = true
-                contentDescription = thickNames[i]
-                isSelected = isSel
-                if (android.os.Build.VERSION.SDK_INT >= 30) {
-                    stateDescription = if (isSel) "Dipilih" else "Tidak dipilih"
+            },
+            onCommit = { v ->
+                val key = when (t) {
+                    Tool.PEN -> "width_pen"
+                    Tool.MARKER -> "width_marker"
+                    Tool.HIGHLIGHTER -> "width_highlighter"
+                    else -> null
                 }
-            }
-
-            val dotView = View(this).apply {
-                val dotBg = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(getColorForTool(t))
-                }
-                background = dotBg
-            }
-            dotView.id = 202
-            val dSize = dp(dotSizes[i])
-            wBtn.addView(dotView, FrameLayout.LayoutParams(dSize, dSize, Gravity.CENTER))
-
-            wBtn.setOnClickListener {
-                setWidthIndexForTool(t, i)
-                val w = getWidthForTool(t, i)
-                activeStrokeWidth = w
-                canvasView.widthWorld = w
-
-                for (j in thickBtns.indices) {
-                    val b = thickBtns[j]
-                    val sel = j == i
-                    b.isSelected = sel
-                    if (android.os.Build.VERSION.SDK_INT >= 30) {
-                        b.stateDescription = if (sel) "Dipilih" else "Tidak dipilih"
-                    }
-                    if (sel) {
-                        b.background = SketchDrawable(fill = Palette.YELLOW, stroke = Palette.INK, variant = 3)
-                    } else {
-                        b.background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, variant = 2)
-                    }
+                if (key != null) {
+                    getSharedPreferences("tulis_prefs", MODE_PRIVATE).edit().putFloat(key, v).apply()
                 }
             }
-            thickBtns.add(wBtn)
-
-            val wLp = LinearLayout.LayoutParams(dp(64f), dp(44f)).apply {
-                if (i > 0) marginStart = dp(10f)
-            }
-            thickRow.addView(wBtn, wLp)
-        }
-        cardView.addView(thickRow)
+        )
+        cardView.addView(thickSlider, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         val separator = DashedSeparatorView(this)
         cardView.addView(separator, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(14f)).apply {

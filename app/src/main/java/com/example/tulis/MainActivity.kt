@@ -31,9 +31,11 @@ import android.widget.FrameLayout
 import android.widget.GridView
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import com.example.tulis.model.NoteMode
 import com.example.tulis.model.NotebookMeta
+import com.example.tulis.model.PageOrientation
 import com.example.tulis.storage.NotebookRepository
 import com.example.tulis.ui.Fonts
 import com.example.tulis.ui.Icon
@@ -757,6 +759,7 @@ class MainActivity : Activity() {
         } catch (t: Throwable) {
             NoteMode.INFINITE
         }
+        var selectedOrientation = PageOrientation.PORTRAIT
 
         val sheetContent = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -857,6 +860,112 @@ class MainActivity : Activity() {
             )
         }
 
+        val labelOrientation = TextView(this).apply {
+            text = "Orientasi halaman"
+            textSize = 17f
+            typeface = Fonts.ui(context)
+            setTextColor(Palette.INK_SOFT)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dp(16f)
+                bottomMargin = dp(8f)
+            }
+        }
+
+        val orientationChipsRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        lateinit var chipPortrait: TextView
+        lateinit var chipLandscape: TextView
+
+        fun updateOrientationSelection() {
+            val isPortrait = (selectedOrientation == PageOrientation.PORTRAIT)
+            chipPortrait.isSelected = isPortrait
+            chipLandscape.isSelected = !isPortrait
+            chipPortrait.setTextColor(Palette.INK)
+            chipLandscape.setTextColor(Palette.INK)
+            chipPortrait.background = SketchDrawable(
+                seed = 311L,
+                fill = if (isPortrait) Palette.YELLOW else 0,
+                stroke = Palette.INK,
+                strokeWidthDp = 2.5f,
+                shadowOffsetDp = 0f,
+                cornerDp = 14f,
+                variant = 0
+            )
+            chipLandscape.background = SketchDrawable(
+                seed = 312L,
+                fill = if (!isPortrait) Palette.YELLOW else 0,
+                stroke = Palette.INK,
+                strokeWidthDp = 2.5f,
+                shadowOffsetDp = 0f,
+                cornerDp = 14f,
+                variant = 1
+            )
+        }
+
+        chipPortrait = TextView(this).apply {
+            text = "Potret"
+            textSize = 19f
+            typeface = Fonts.ui(context)
+            gravity = Gravity.CENTER
+            minimumHeight = dp(44f)
+            minimumWidth = dp(44f)
+            val hPad = dp(18f)
+            val vPad = dp(4f)
+            setPadding(hPad, vPad, hPad, vPad)
+            contentDescription = "Orientasi potret"
+            isClickable = true
+            isFocusable = true
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                rightMargin = dp(10f)
+            }
+            setOnClickListener {
+                if (selectedOrientation != PageOrientation.PORTRAIT) {
+                    selectedOrientation = PageOrientation.PORTRAIT
+                    updateOrientationSelection()
+                }
+            }
+        }
+
+        chipLandscape = TextView(this).apply {
+            text = "Lanskap"
+            textSize = 19f
+            typeface = Fonts.ui(context)
+            gravity = Gravity.CENTER
+            minimumHeight = dp(44f)
+            minimumWidth = dp(44f)
+            val hPad = dp(18f)
+            val vPad = dp(4f)
+            setPadding(hPad, vPad, hPad, vPad)
+            contentDescription = "Orientasi lanskap"
+            isClickable = true
+            isFocusable = true
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            setOnClickListener {
+                if (selectedOrientation != PageOrientation.LANDSCAPE) {
+                    selectedOrientation = PageOrientation.LANDSCAPE
+                    updateOrientationSelection()
+                }
+            }
+        }
+
+        orientationChipsRow.addView(chipPortrait)
+        orientationChipsRow.addView(chipLandscape)
+
         lateinit var cardInfinite: LinearLayout
         lateinit var cardPaged: LinearLayout
 
@@ -884,6 +993,9 @@ class MainActivity : Activity() {
                 cornerDp = 14f,
                 variant = 2
             )
+            val oriVisibility = if (isInf) View.GONE else View.VISIBLE
+            labelOrientation.visibility = oriVisibility
+            orientationChipsRow.visibility = oriVisibility
         }
 
         cardInfinite = LinearLayout(this).apply {
@@ -993,6 +1105,8 @@ class MainActivity : Activity() {
         cardsRow.addView(cardInfinite)
         cardsRow.addView(cardPaged)
         sheetContent.addView(cardsRow)
+        sheetContent.addView(labelOrientation)
+        sheetContent.addView(orientationChipsRow)
 
         val buttonsRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1057,7 +1171,8 @@ class MainActivity : Activity() {
             setOnClickListener {
                 val inputTitle = titleInput.text.toString().trim()
                 prefs.edit().putString("last_canvas_mode", selectedMode.name).apply()
-                val created = repo.create(inputTitle, selectedMode)
+                val effectiveOrientation = if (selectedMode == NoteMode.PAGED) selectedOrientation else PageOrientation.PORTRAIT
+                val created = repo.create(inputTitle, selectedMode, effectiveOrientation)
                 dialog.dismiss()
                 openEditor(created.id)
             }
@@ -1108,6 +1223,7 @@ class MainActivity : Activity() {
         }
 
         updateModeSelection()
+        updateOrientationSelection()
         dialog.show()
     }
 

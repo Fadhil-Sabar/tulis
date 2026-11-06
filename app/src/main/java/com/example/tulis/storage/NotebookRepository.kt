@@ -8,6 +8,7 @@ import com.example.tulis.ink.InkBridge
 import com.example.tulis.ink.StrokeItem
 import com.example.tulis.model.NoteMode
 import com.example.tulis.model.NotebookMeta
+import com.example.tulis.model.PageOrientation
 import com.example.tulis.model.PaperStyle
 import com.example.tulis.model.PageContent
 import com.example.tulis.model.TextItem
@@ -106,6 +107,12 @@ class NotebookRepository(private val context: Context) {
             }
             val rawSpacing = obj.optDouble("paperSpacing", 28.0).toFloat()
             val paperSpacing = rawSpacing.coerceIn(12f, 120f)
+            val orientationStr = obj.optString("orientation", "")
+            val orientation = try {
+                if (orientationStr.isNotEmpty()) PageOrientation.valueOf(orientationStr) else PageOrientation.PORTRAIT
+            } catch (e: Exception) {
+                PageOrientation.PORTRAIT
+            }
 
             NotebookMeta(
                 id = id,
@@ -118,7 +125,8 @@ class NotebookRepository(private val context: Context) {
                 vpTy = vpTy,
                 lastPage = lastPage,
                 paperStyle = paperStyle,
-                paperSpacing = paperSpacing
+                paperSpacing = paperSpacing,
+                orientation = orientation
             )
         } catch (t: Throwable) {
             null
@@ -135,6 +143,7 @@ class NotebookRepository(private val context: Context) {
         obj.put("lastPage", meta.lastPage)
         obj.put("paper", meta.paperStyle.name)
         obj.put("paperSpacing", meta.paperSpacing.toDouble())
+        obj.put("orientation", meta.orientation.name)
 
         val vpArr = JSONArray()
         vpArr.put(meta.vpScale.toDouble())
@@ -174,7 +183,7 @@ class NotebookRepository(private val context: Context) {
         return "Catatan " + SimpleDateFormat("d MMM HH.mm", Locale("id", "ID")).format(Date())
     }
 
-    fun create(title: String, mode: NoteMode): NotebookMeta {
+    fun create(title: String, mode: NoteMode, orientation: PageOrientation = PageOrientation.PORTRAIT): NotebookMeta {
         val finalTitle = if (title.isBlank()) defaultTitle() else title
         val id = UUID.randomUUID().toString()
         val defaultPaperStyle = if (mode == NoteMode.INFINITE) PaperStyle.DOTS else PaperStyle.PLAIN
@@ -189,7 +198,8 @@ class NotebookRepository(private val context: Context) {
             vpTy = 0f,
             lastPage = 0,
             paperStyle = defaultPaperStyle,
-            paperSpacing = 28f
+            paperSpacing = 28f,
+            orientation = orientation
         )
         notebookDir(id)
         writeMetaSync(meta)

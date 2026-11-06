@@ -8,13 +8,20 @@ enum class PaperStyle { PLAIN, DOTS, GRID, LINES }
 enum class Tool { PEN, MARKER, HIGHLIGHTER, ERASER, TEXT, PAN }
 enum class BrushKind { PEN, MARKER, HIGHLIGHTER }
 
+enum class PageOrientation { PORTRAIT, LANDSCAPE }
+val PageOrientation.pageW: Float
+    get() = if (this == PageOrientation.LANDSCAPE) 1414f else 1000f
+val PageOrientation.pageH: Float
+    get() = if (this == PageOrientation.LANDSCAPE) 1000f else 1414f
+
 data class NotebookMeta(
     val id: String, var title: String, val mode: NoteMode,
     var pageCount: Int, var updatedAt: Long,
     var vpScale: Float = 1f, var vpTx: Float = 0f, var vpTy: Float = 0f,
     var lastPage: Int = 0,
     var paperStyle: PaperStyle = PaperStyle.DOTS,
-    var paperSpacing: Float = 28f
+    var paperSpacing: Float = 28f,
+    var orientation: PageOrientation = PageOrientation.PORTRAIT
 )
 
 class TextItem(

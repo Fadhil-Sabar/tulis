@@ -236,6 +236,11 @@ class NoteCanvasView @JvmOverloads constructor(
         canvasLayer.invalidate()
     }
 
+    fun setPageSize(w: Float, h: Float) {
+        canvasLayer.setPageSize(w, h)
+        invalidatePages()
+    }
+
     fun scrollToPage(i: Int) {
         val s = canvasLayer.stack ?: return
         if (i < 0 || i >= s.pageCount) return
