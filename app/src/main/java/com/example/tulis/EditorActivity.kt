@@ -3813,6 +3813,7 @@ class EditorActivity : Activity() {
         super.onPause()
         flushAutosave(immediateThumb = true)
         repo.flush()
+        if (notebookId.isNotEmpty()) com.example.tulis.storage.VaultSync.get(this).requestSync(listOf(notebookId))
     }
 
     override fun onDestroy() {

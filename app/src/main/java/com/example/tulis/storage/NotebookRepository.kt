@@ -787,6 +787,97 @@ class NotebookRepository(private val context: Context) {
         }
     }
 
+    fun folderPath(folderId: String?): List<Pair<String, String>> {
+        val byId = listFolders().associateBy { it.id }
+        val out = ArrayList<Pair<String, String>>()
+        var cur = folderId
+        while (cur != null && out.size <= byId.size) {
+            val fo = byId[cur] ?: break
+            out.add(0, fo.id to fo.name)
+            cur = fo.parentId
+        }
+        return out
+    }
+
+    fun archiveNotebook(id: String, out: File, appVersion: String, cb: (Boolean) -> Unit) {
+        executor.execute {
+            val ok = try {
+                val meta = parseMeta(metaFile(id))
+                if (meta == null) {
+                    false
+                } else {
+                    NotebookArchive.pack(File(notebooksDir, id), folderPath(meta.folderId), appVersion, out)
+                    true
+                }
+            } catch (t: Throwable) {
+                false
+            }
+            mainHandler.post { cb(ok) }
+        }
+    }
+
+    fun hashNotebook(id: String): String? {
+        val dir = File(notebooksDir, id)
+        if (!dir.isDirectory || !metaFile(id).isFile) return null
+        return try {
+            NotebookArchive.contentHash(dir)
+        } catch (t: Throwable) {
+            null
+        }
+    }
+
+    fun installFromStaging(stagingDir: File, result: NotebookArchive.UnpackResult.Ok, replaceExisting: Boolean, cb: (Boolean) -> Unit) {
+        executor.execute {
+            val ok = try {
+                installSync(stagingDir, result, replaceExisting)
+            } catch (t: Throwable) {
+                false
+            }
+            mainHandler.post { cb(ok) }
+        }
+    }
+
+    private fun installSync(stagingDir: File, result: NotebookArchive.UnpackResult.Ok, replaceExisting: Boolean): Boolean {
+        val target = File(notebooksDir, result.id)
+        if (target.exists()) {
+            if (!replaceExisting) return false
+            moveToTrash(result.id)
+        }
+        if (!stagingDir.renameTo(target)) return false
+        try {
+            restoreFolders(result.folderPath, result.id)
+        } catch (t: Throwable) {
+        }
+        return true
+    }
+
+    private fun moveToTrash(id: String) {
+        val src = File(notebooksDir, id)
+        val dst = File(trashDir, id)
+        if (dst.exists()) dst.deleteRecursively()
+        if (!src.renameTo(dst)) throw IOException("Gagal memindah ${src.name} ke sampah")
+        File(dst, "deleted_at").writeText(System.currentTimeMillis().toString())
+    }
+
+    @Synchronized
+    private fun restoreFolders(path: List<Pair<String, String>>, notebookId: String) {
+        val folders = listFolders().toMutableList()
+        var parentId: String? = null
+        var changed = false
+        for ((fid, fname) in path) {
+            if (folders.none { it.id == fid }) {
+                val name = if (nameTaken(folders, parentId, fname, null)) "$fname (pulih)" else fname
+                folders.add(Folder(fid, name, parentId, System.currentTimeMillis()))
+                changed = true
+            }
+            parentId = fid
+        }
+        if (changed) writeFolders(folders)
+        val meta = parseMeta(metaFile(notebookId)) ?: return
+        meta.folderId = parentId
+        writeMetaSync(meta)
+    }
+
     fun flush() {
         val future = executor.submit { }
         try {

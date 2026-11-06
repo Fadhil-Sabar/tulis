@@ -120,6 +120,26 @@ class MainActivity : Activity() {
         super.onResume()
         updateTrashBadge()
         refreshNotebooks()
+        com.example.tulis.storage.VaultSync.get(this).requestSync(null)
+    }
+
+    private fun pickVault() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+        )
+        startActivityForResult(intent, 7002)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != 7002 || resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        val sync = com.example.tulis.storage.VaultSync.get(this)
+        sync.setVault(uri)
+        sync.requestSync(null, now = true)
     }
 
     override fun onBackPressed() {
@@ -249,6 +269,43 @@ class MainActivity : Activity() {
         }
         sortBtn = sortPill
         headerLayout.addView(sortPill)
+
+        val vaultBtn = FrameLayout(this).apply {
+            val s48 = dp(48f)
+            layoutParams = LinearLayout.LayoutParams(s48, s48).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                rightMargin = dp(10f)
+            }
+            background = SketchDrawable(
+                seed = 776L,
+                fill = Palette.CARD,
+                stroke = Palette.INK,
+                strokeWidthDp = 2.5f,
+                shadowOffsetDp = 2.5f,
+                cornerDp = 24f,
+                round = true
+            )
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Cadangan vault"
+
+            val vaultIcon = IconView(context).apply {
+                icon = Icon.VAULT
+                tint = Palette.INK
+                strokeWidthDp = 2f
+                isClickable = false
+                isFocusable = false
+                layoutParams = FrameLayout.LayoutParams(dp(24f), dp(24f)).apply {
+                    gravity = Gravity.CENTER
+                }
+            }
+            addView(vaultIcon)
+
+            setOnClickListener {
+                com.example.tulis.ui.showVaultDialog(this@MainActivity) { pickVault() }
+            }
+        }
+        headerLayout.addView(vaultBtn)
 
         val settingsBtn = FrameLayout(this).apply {
             val s48 = dp(48f)
