@@ -21,8 +21,11 @@ data class NotebookMeta(
     var lastPage: Int = 0,
     var paperStyle: PaperStyle = PaperStyle.DOTS,
     var paperSpacing: Float = 28f,
-    var orientation: PageOrientation = PageOrientation.PORTRAIT
+    var orientation: PageOrientation = PageOrientation.PORTRAIT,
+    var folderId: String? = null
 )
+
+data class Folder(val id: String, var name: String, var parentId: String?, val createdAt: Long)
 
 class TextItem(
     var x: Float,

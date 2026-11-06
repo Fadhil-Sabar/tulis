@@ -29,10 +29,13 @@ import android.widget.BaseAdapter
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.GridView
+import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
+import com.example.tulis.model.Folder
 import com.example.tulis.model.NoteMode
 import com.example.tulis.model.NotebookMeta
 import com.example.tulis.model.PageOrientation
@@ -59,6 +62,12 @@ class MainActivity : Activity() {
     private enum class FilterTab { ALL, INFINITE, PAGED }
     private enum class SortOrder { LATEST, TITLE_AZ }
 
+    private sealed class HomeItem {
+        class FolderItem(val folder: Folder, val count: Int) : HomeItem()
+        class NoteItem(val meta: NotebookMeta) : HomeItem()
+        class UpItem(val parentId: String?, val parentName: String) : HomeItem()
+    }
+
     private lateinit var repo: NotebookRepository
     private lateinit var prefs: SharedPreferences
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -66,7 +75,9 @@ class MainActivity : Activity() {
     private val thumbMemoryCache = object : LruCache<String, Bitmap>(32) {}
 
     private var allNotebooks: List<NotebookMeta> = emptyList()
-    private var displayedNotebooks: List<NotebookMeta> = emptyList()
+    private var folders: List<Folder> = emptyList()
+    private var currentFolderId: String? = null
+    private var displayedItems: List<HomeItem> = emptyList()
     private var currentFilter = FilterTab.ALL
     private var currentSortOrder = SortOrder.LATEST
     private var currentSearchQuery = ""
@@ -87,6 +98,9 @@ class MainActivity : Activity() {
     private lateinit var sortBtn: TextView
     private lateinit var trashBadgeView: TextView
     private lateinit var rootLayout: FrameLayout
+    private lateinit var locationRow: LinearLayout
+    private lateinit var breadcrumbRow: LinearLayout
+    private lateinit var crumbScroll: HorizontalScrollView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -111,6 +125,8 @@ class MainActivity : Activity() {
     override fun onBackPressed() {
         if (isSearchVisible) {
             toggleSearch()
+        } else if (currentFolderId != null) {
+            navigateTo(folders.firstOrNull { it.id == currentFolderId }?.parentId)
         } else {
             super.onBackPressed()
         }
@@ -463,6 +479,57 @@ class MainActivity : Activity() {
         chipsLayout.addView(chipPaged)
         contentLayout.addView(chipsLayout)
 
+        locationRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(24f), 0, dp(24f), 0)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        crumbScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        breadcrumbRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        crumbScroll.addView(breadcrumbRow)
+        locationRow.addView(crumbScroll)
+        locationRow.addView(TextView(this).apply {
+            text = "+ Folder"
+            textSize = 17f
+            typeface = Fonts.ui(context)
+            setTextColor(Palette.INK)
+            gravity = Gravity.CENTER
+            minimumHeight = dp(44f)
+            val hPad = dp(14f)
+            setPadding(hPad, 0, hPad, 0)
+            background = SketchDrawable(
+                seed = 331L,
+                fill = Palette.CARD,
+                stroke = Palette.INK,
+                strokeWidthDp = 2.5f,
+                shadowOffsetDp = 2f,
+                cornerDp = 14f,
+                variant = 2
+            )
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Buat folder baru"
+            setOnClickListener {
+                showNameDialog("Folder baru", "", "Buat") { name ->
+                    if (repo.createFolder(name, currentFolderId) != null) {
+                        refreshNotebooks()
+                        null
+                    } else "Nama kosong atau sudah dipakai di sini"
+                }
+            }
+        })
+        contentLayout.addView(locationRow)
+
         val gridContainer = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -495,12 +562,19 @@ class MainActivity : Activity() {
         adapter = NotebookAdapter()
         gridView.adapter = adapter
         gridView.setOnItemClickListener { _, _, position, _ ->
-            val meta = displayedNotebooks.getOrNull(position) ?: return@setOnItemClickListener
-            openEditor(meta.id)
+            when (val item = displayedItems.getOrNull(position)) {
+                is HomeItem.FolderItem -> navigateTo(item.folder.id)
+                is HomeItem.NoteItem -> openEditor(item.meta.id)
+                is HomeItem.UpItem -> navigateTo(item.parentId)
+                null -> {}
+            }
         }
         gridView.setOnItemLongClickListener { _, _, position, _ ->
-            val meta = displayedNotebooks.getOrNull(position) ?: return@setOnItemLongClickListener false
-            showItemOptionsDialog(meta)
+            when (val item = displayedItems.getOrNull(position)) {
+                is HomeItem.FolderItem -> showFolderOptionsDialog(item.folder)
+                is HomeItem.NoteItem -> showItemOptionsDialog(item.meta)
+                is HomeItem.UpItem, null -> return@setOnItemLongClickListener false
+            }
             true
         }
         gridContainer.addView(gridView)
@@ -695,29 +769,45 @@ class MainActivity : Activity() {
 
     private fun refreshNotebooks() {
         allNotebooks = repo.list()
+        folders = repo.listFolders()
+        if (currentFolderId != null && folders.none { it.id == currentFolderId }) currentFolderId = null
         applyFilter()
     }
 
     private fun applyFilter() {
+        val searching = currentSearchQuery.isNotEmpty()
         val tabFiltered = when (currentFilter) {
             FilterTab.ALL -> allNotebooks
             FilterTab.INFINITE -> allNotebooks.filter { it.mode == NoteMode.INFINITE }
             FilterTab.PAGED -> allNotebooks.filter { it.mode == NoteMode.PAGED }
         }
-        val searched = if (currentSearchQuery.isEmpty()) {
-            tabFiltered
-        } else {
+        val scoped = if (searching) {
             tabFiltered.filter { it.title.contains(currentSearchQuery, ignoreCase = true) }
+        } else {
+            tabFiltered.filter { it.folderId == currentFolderId }
         }
 
-        displayedNotebooks = when (currentSortOrder) {
-            SortOrder.LATEST -> searched.sortedByDescending { it.updatedAt }
-            SortOrder.TITLE_AZ -> searched.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+        val sortedNotes = when (currentSortOrder) {
+            SortOrder.LATEST -> scoped.sortedByDescending { it.updatedAt }
+            SortOrder.TITLE_AZ -> scoped.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
         }
+        val folderItems = if (searching) emptyList() else folders
+            .filter { it.parentId == currentFolderId }
+            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+            .map { f ->
+                HomeItem.FolderItem(f, allNotebooks.count { it.folderId == f.id } + folders.count { it.parentId == f.id })
+            }
+        val upItems = if (searching || currentFolderId == null) emptyList() else {
+            val parent = folders.firstOrNull { it.id == currentFolderId }?.parentId
+            listOf(HomeItem.UpItem(parent, folders.firstOrNull { it.id == parent }?.name ?: "Beranda"))
+        }
+        displayedItems = upItems + folderItems + sortedNotes.map { HomeItem.NoteItem(it) }
 
+        locationRow.visibility = if (searching) View.GONE else View.VISIBLE
+        updateBreadcrumb()
         adapter.notifyDataSetChanged()
 
-        if (displayedNotebooks.isEmpty()) {
+        if (displayedItems.none { it !is HomeItem.UpItem }) {
             emptyContainer.visibility = View.VISIBLE
             if (currentSearchQuery.isNotEmpty()) {
                 emptyText.text = "Tidak ada yang cocok dengan '$currentSearchQuery'"
@@ -730,6 +820,10 @@ class MainActivity : Activity() {
             } else if (currentFilter != FilterTab.ALL) {
                 val modeName = if (currentFilter == FilterTab.INFINITE) "Infinite" else "Halaman"
                 emptyText.text = "Belum ada notebook $modeName"
+                emptyActionBtn.visibility = View.GONE
+                emptyActionBtn.setOnClickListener(null)
+            } else if (currentFolderId != null) {
+                emptyText.text = "Folder ini kosong.\nKetuk tombol Baru ↘ untuk membuat catatan di sini."
                 emptyActionBtn.visibility = View.GONE
                 emptyActionBtn.setOnClickListener(null)
             } else {
@@ -1172,7 +1266,7 @@ class MainActivity : Activity() {
                 val inputTitle = titleInput.text.toString().trim()
                 prefs.edit().putString("last_canvas_mode", selectedMode.name).apply()
                 val effectiveOrientation = if (selectedMode == NoteMode.PAGED) selectedOrientation else PageOrientation.PORTRAIT
-                val created = repo.create(inputTitle, selectedMode, effectiveOrientation)
+                val created = repo.create(inputTitle, selectedMode, effectiveOrientation, currentFolderId)
                 dialog.dismiss()
                 openEditor(created.id)
             }
@@ -1227,7 +1321,9 @@ class MainActivity : Activity() {
         dialog.show()
     }
 
-    private fun showItemOptionsDialog(meta: NotebookMeta) {
+    private class DialogAction(val label: String, val fill: Int, val textColor: Int, val onClick: () -> Unit)
+
+    private fun showActionsDialog(title: String, message: String?, actions: List<DialogAction>) {
         val dialog = Dialog(this)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
 
@@ -1246,79 +1342,67 @@ class MainActivity : Activity() {
             setPadding(pad, pad, pad, pad)
         }
 
-        val titleV = TextView(this).apply {
-            text = meta.title
+        dialogView.addView(TextView(this).apply {
+            text = title
             setTextColor(Palette.INK)
             textSize = 24f
             typeface = Fonts.hand(context, bold = true)
             maxLines = 2
             includeFontPadding = false
-        }
-        dialogView.addView(titleV, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = dp(16f)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(if (message == null) 16f else 8f)
         })
 
-        val renameBtn = TextView(this).apply {
-            text = "Ganti nama"
-            setTextColor(Palette.INK)
-            textSize = 19f
-            typeface = Fonts.ui(context)
-            gravity = Gravity.CENTER
-            minimumHeight = dp(48f)
-            background = SketchDrawable(
-                seed = 602L,
-                fill = Palette.YELLOW,
-                stroke = Palette.INK,
-                strokeWidthDp = 2.5f,
-                shadowOffsetDp = 2f,
-                cornerDp = 14f,
-                variant = 1
-            )
-            val padH = dp(16f)
-            setPadding(padH, 0, padH, 0)
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Ganti nama notebook"
-            setOnClickListener {
-                dialog.dismiss()
-                showRenameDialog(meta)
-            }
+        if (message != null) {
+            dialogView.addView(TextView(this).apply {
+                text = message
+                setTextColor(Palette.INK_SOFT)
+                textSize = 17f
+                typeface = Fonts.ui(context)
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                bottomMargin = dp(16f)
+            })
         }
-        dialogView.addView(renameBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = dp(10f)
-        })
 
-        val deleteBtn = TextView(this).apply {
-            text = "Hapus"
-            setTextColor(Palette.CARD)
-            textSize = 19f
-            typeface = Fonts.ui(context)
-            gravity = Gravity.CENTER
-            minimumHeight = dp(48f)
-            background = SketchDrawable(
-                seed = 603L,
-                fill = Palette.RED,
-                stroke = Palette.INK,
-                strokeWidthDp = 2.5f,
-                shadowOffsetDp = 2f,
-                cornerDp = 14f,
-                variant = 2
-            )
-            val padH = dp(16f)
-            setPadding(padH, 0, padH, 0)
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Hapus notebook"
-            setOnClickListener {
-                dialog.dismiss()
-                performDeleteNotebook(meta)
-            }
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        actions.forEachIndexed { i, a ->
+            list.addView(TextView(this).apply {
+                text = a.label
+                setTextColor(a.textColor)
+                textSize = 19f
+                typeface = Fonts.ui(context)
+                gravity = Gravity.CENTER_VERTICAL or Gravity.START
+                minimumHeight = dp(48f)
+                background = SketchDrawable(
+                    seed = 602L + i,
+                    fill = a.fill,
+                    stroke = Palette.INK,
+                    strokeWidthDp = 2.5f,
+                    shadowOffsetDp = 2f,
+                    cornerDp = 14f,
+                    variant = (i % 4)
+                )
+                val padH = dp(16f)
+                setPadding(padH, 0, padH, 0)
+                isClickable = true
+                isFocusable = true
+                contentDescription = a.label
+                setOnClickListener {
+                    dialog.dismiss()
+                    a.onClick()
+                }
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                bottomMargin = dp(10f)
+            })
         }
-        dialogView.addView(deleteBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = dp(10f)
-        })
+        val scroll = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
+            addView(list)
+        }
+        val scrollH = if (actions.size > 6) (resources.displayMetrics.heightPixels * 0.5f).toInt() else ViewGroup.LayoutParams.WRAP_CONTENT
+        dialogView.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, scrollH))
 
-        val cancelBtn = TextView(this).apply {
+        dialogView.addView(TextView(this).apply {
             text = "Batal"
             setTextColor(Palette.INK)
             textSize = 19f
@@ -1326,7 +1410,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             minimumHeight = dp(44f)
             background = SketchDrawable(
-                seed = 604L,
+                seed = 699L,
                 fill = Palette.CARD,
                 stroke = Palette.INK_SOFT,
                 strokeWidthDp = 2f,
@@ -1339,11 +1423,8 @@ class MainActivity : Activity() {
             isClickable = true
             isFocusable = true
             contentDescription = "Batal"
-            setOnClickListener {
-                dialog.dismiss()
-            }
-        }
-        dialogView.addView(cancelBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            setOnClickListener { dialog.dismiss() }
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         val maxDialogW = dp(380f)
         val container = FrameLayout(this).apply {
@@ -1376,6 +1457,143 @@ class MainActivity : Activity() {
         dialog.show()
     }
 
+    private fun showItemOptionsDialog(meta: NotebookMeta) {
+        showActionsDialog(
+            meta.title, null, listOf(
+                DialogAction("Ganti nama", Palette.YELLOW, Palette.INK) { showRenameDialog(meta) },
+                DialogAction("Pindahkan ke folder…", Palette.YELLOW, Palette.INK) {
+                    showFolderPicker("Pindahkan ke…", emptySet(), meta.folderId) { target ->
+                        if (repo.moveNotebook(meta.id, target)) refreshNotebooks()
+                        else Toast.makeText(this, "Gagal memindahkan", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                DialogAction("Hapus", Palette.RED, Palette.CARD) { performDeleteNotebook(meta) }
+            )
+        )
+    }
+
+    private fun showFolderOptionsDialog(folder: Folder) {
+        showActionsDialog(
+            folder.name, null, listOf(
+                DialogAction("Ganti nama", Palette.YELLOW, Palette.INK) {
+                    showNameDialog("Ganti nama folder", folder.name, "Simpan") { name ->
+                        if (name == folder.name || repo.renameFolder(folder.id, name)) {
+                            refreshNotebooks()
+                            null
+                        } else "Nama kosong atau sudah dipakai di sini"
+                    }
+                },
+                DialogAction("Pindahkan ke folder…", Palette.YELLOW, Palette.INK) {
+                    val exclude = repo.descendantFolderIds(folder.id) + folder.id
+                    showFolderPicker("Pindahkan ke…", exclude, folder.parentId) { target ->
+                        if (repo.moveFolder(folder.id, target)) refreshNotebooks()
+                        else Toast.makeText(this, "Nama sudah dipakai di tujuan", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                DialogAction("Hapus folder", Palette.RED, Palette.CARD) { confirmDeleteFolder(folder) }
+            )
+        )
+    }
+
+    private fun confirmDeleteFolder(folder: Folder) {
+        val inside = allNotebooks.count { it.folderId == folder.id } + folders.count { it.parentId == folder.id }
+        val delete = {
+            repo.deleteFolder(folder.id)
+            if (currentFolderId == folder.id) currentFolderId = folder.parentId
+            refreshNotebooks()
+        }
+        if (inside == 0) {
+            delete()
+            return
+        }
+        showActionsDialog(
+            "Hapus folder?", "Isi folder (catatan dan sub-folder) dipindah satu tingkat ke atas, tidak ikut dihapus.",
+            listOf(DialogAction("Hapus folder \"${folder.name}\"", Palette.RED, Palette.CARD) { delete() })
+        )
+    }
+
+    private fun folderTree(exclude: Set<String>): List<Pair<Folder, Int>> {
+        val out = ArrayList<Pair<Folder, Int>>()
+        fun walk(parent: String?, depth: Int) {
+            folders.filter { it.parentId == parent && it.id !in exclude }
+                .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+                .forEach {
+                    out.add(it to depth)
+                    walk(it.id, depth + 1)
+                }
+        }
+        walk(null, 0)
+        return out
+    }
+
+    private fun showFolderPicker(title: String, exclude: Set<String>, current: String?, onPick: (String?) -> Unit) {
+        val rows = ArrayList<DialogAction>()
+        fun row(label: String, id: String?) {
+            val here = id == current
+            rows.add(
+                DialogAction(if (here) "$label  ✓" else label, if (here) Palette.YELLOW else Palette.CARD, Palette.INK) {
+                    if (!here) onPick(id)
+                }
+            )
+        }
+        row("Beranda", null)
+        for ((f, depth) in folderTree(exclude)) row("    ".repeat(depth) + f.name, f.id)
+        showActionsDialog(title, null, rows)
+    }
+
+    private fun folderPath(id: String?): List<Folder> {
+        val out = ArrayList<Folder>()
+        var cur = id
+        while (cur != null && out.size <= folders.size) {
+            val f = folders.firstOrNull { it.id == cur } ?: break
+            out.add(0, f)
+            cur = f.parentId
+        }
+        return out
+    }
+
+    private fun navigateTo(folderId: String?) {
+        currentFolderId = folderId
+        applyFilter()
+    }
+
+    private fun updateBreadcrumb() {
+        breadcrumbRow.removeAllViews()
+        val path = folderPath(currentFolderId)
+        fun crumb(label: String, target: String?, last: Boolean) {
+            breadcrumbRow.addView(TextView(this).apply {
+                text = label
+                textSize = 18f
+                typeface = Fonts.ui(context)
+                setTextColor(if (last) Palette.INK else Palette.INK_SOFT)
+                gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(44f)
+                maxLines = 1
+                if (!last) {
+                    isClickable = true
+                    isFocusable = true
+                    contentDescription = "Buka $label"
+                    setOnClickListener { navigateTo(target) }
+                }
+            })
+        }
+        fun sep() {
+            breadcrumbRow.addView(TextView(this).apply {
+                text = "  ›  "
+                textSize = 18f
+                typeface = Fonts.ui(context)
+                setTextColor(Palette.INK_SOFT)
+                gravity = Gravity.CENTER_VERTICAL
+            })
+        }
+        crumb("Beranda", null, path.isEmpty())
+        path.forEachIndexed { i, f ->
+            sep()
+            crumb(f.name, f.id, i == path.lastIndex)
+        }
+        crumbScroll.post { crumbScroll.fullScroll(View.FOCUS_RIGHT) }
+    }
+
     private fun performDeleteNotebook(meta: NotebookMeta) {
         repo.softDelete(meta.id)
         updateTrashBadge()
@@ -1395,6 +1613,16 @@ class MainActivity : Activity() {
     }
 
     private fun showRenameDialog(meta: NotebookMeta) {
+        showNameDialog("Ganti nama", meta.title, "Simpan") { newName ->
+            if (newName.isNotEmpty() && newName != meta.title) {
+                repo.rename(meta.id, newName)
+                refreshNotebooks()
+            }
+            null
+        }
+    }
+
+    private fun showNameDialog(heading: String, initial: String, saveLabel: String, onSave: (String) -> String?) {
         val dialog = Dialog(this)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
 
@@ -1414,7 +1642,7 @@ class MainActivity : Activity() {
         }
 
         val titleV = TextView(this).apply {
-            text = "Ganti nama"
+            text = heading
             setTextColor(Palette.INK)
             textSize = 24f
             typeface = Fonts.hand(context, bold = true)
@@ -1425,8 +1653,10 @@ class MainActivity : Activity() {
         })
 
         val input = EditText(this).apply {
-            setText(meta.title)
-            setSelection(meta.title.length)
+            setText(initial)
+            setSelection(initial.length)
+            hint = "Nama"
+            setHintTextColor(Palette.INK_SOFT)
             textSize = 20f
             typeface = Fonts.ui(context)
             setTextColor(Palette.INK)
@@ -1482,7 +1712,7 @@ class MainActivity : Activity() {
         })
 
         val saveBtn = TextView(this).apply {
-            text = "Simpan"
+            text = saveLabel
             setTextColor(Palette.CARD)
             textSize = 18f
             typeface = Fonts.ui(context)
@@ -1502,14 +1732,14 @@ class MainActivity : Activity() {
             setPadding(padH, 0, padH, 0)
             isClickable = true
             isFocusable = true
-            contentDescription = "Simpan nama baru"
+            contentDescription = saveLabel
             setOnClickListener {
-                val newName = input.text.toString().trim()
-                if (newName.isNotEmpty() && newName != meta.title) {
-                    repo.rename(meta.id, newName)
-                    refreshNotebooks()
+                val error = onSave(input.text.toString().trim())
+                if (error == null) {
+                    dialog.dismiss()
+                } else {
+                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_SHORT).show()
                 }
-                dialog.dismiss()
             }
         }
         btnRow.addView(saveBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -1595,14 +1825,21 @@ class MainActivity : Activity() {
 
         private val dateFormat = SimpleDateFormat("d MMM", Locale("id", "ID"))
 
-        override fun getCount(): Int = displayedNotebooks.size
+        override fun getCount(): Int = displayedItems.size
 
-        override fun getItem(position: Int): Any = displayedNotebooks[position]
+        override fun getItem(position: Int): Any = displayedItems[position]
+
+        override fun getViewTypeCount(): Int = 2
+
+        override fun getItemViewType(position: Int): Int =
+            if (displayedItems[position] is HomeItem.NoteItem) 0 else 1
 
         override fun getItemId(position: Int): Long = position.toLong()
 
         override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
-            val meta = displayedNotebooks[position]
+            val item = displayedItems[position]
+            if (item !is HomeItem.NoteItem) return folderView(item, position, convertView)
+            val meta = item.meta
             val cardView: LinearLayout
             val thumbContainer: FrameLayout
             val thumbView: ImageView
@@ -1775,6 +2012,113 @@ class MainActivity : Activity() {
 
             return cardView
         }
+    }
+
+    private class FolderHolder(
+        val iconView: IconView,
+        val nameView: TextView,
+        val countView: TextView,
+        val menuBtn: FrameLayout,
+        val thumbContainer: FrameLayout
+    )
+
+    private fun folderView(item: HomeItem, position: Int, convertView: View?): View {
+        val card: LinearLayout
+        val holder: FolderHolder
+        if (convertView == null) {
+            card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            val thumb = FrameLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(132f))
+            }
+            val iconView = IconView(this).apply {
+                icon = Icon.FOLDER
+                tint = Palette.INK
+                strokeWidthDp = 2.4f
+                isClickable = false
+                isFocusable = false
+                layoutParams = FrameLayout.LayoutParams(dp(64f), dp(64f)).apply { gravity = Gravity.CENTER }
+            }
+            thumb.addView(iconView)
+            val menu = FrameLayout(this).apply {
+                layoutParams = FrameLayout.LayoutParams(dp(44f), dp(44f)).apply {
+                    gravity = Gravity.TOP or Gravity.END
+                    topMargin = dp(2f)
+                    rightMargin = dp(2f)
+                }
+                background = SketchDrawable(
+                    seed = 801L,
+                    fill = Palette.CARD,
+                    stroke = Palette.INK,
+                    strokeWidthDp = 1.8f,
+                    shadowOffsetDp = 1.5f,
+                    cornerDp = 12f,
+                    round = true
+                )
+                isClickable = true
+                isFocusable = false
+                contentDescription = "Opsi folder"
+                addView(ThreeDotsView(this@MainActivity).apply {
+                    layoutParams = FrameLayout.LayoutParams(dp(20f), dp(20f)).apply { gravity = Gravity.CENTER }
+                })
+            }
+            thumb.addView(menu)
+            card.addView(thumb)
+            val textPad = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(4f), dp(8f), dp(4f), 0)
+            }
+            val nameView = TextView(this).apply {
+                textSize = 20f
+                typeface = Fonts.ui(context)
+                setTextColor(Palette.INK)
+                maxLines = 1
+                includeFontPadding = false
+            }
+            val countView = TextView(this).apply {
+                textSize = 15f
+                typeface = Fonts.ui(context)
+                setTextColor(Palette.INK_SOFT)
+                maxLines = 1
+                includeFontPadding = false
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(2f) }
+            }
+            textPad.addView(nameView)
+            textPad.addView(countView)
+            card.addView(textPad)
+            holder = FolderHolder(iconView, nameView, countView, menu, thumb)
+            card.tag = holder
+        } else {
+            card = convertView as LinearLayout
+            holder = card.tag as FolderHolder
+        }
+        val up = item as? HomeItem.UpItem
+        val folder = (item as? HomeItem.FolderItem)?.folder
+        holder.thumbContainer.background = SketchDrawable(
+            seed = (folder?.id ?: "up").hashCode().toLong(),
+            fill = if (up != null) Palette.KRAFT else Palette.YELLOW,
+            stroke = Palette.INK,
+            strokeWidthDp = 2.5f,
+            shadowOffsetDp = 3f,
+            shadowColor = Palette.SHADOW_SOFT,
+            cornerDp = 14f,
+            variant = position % 8
+        )
+        holder.iconView.icon = if (up != null) Icon.BACK else Icon.FOLDER
+        holder.nameView.text = if (up != null) ".." else folder!!.name
+        holder.countView.text = when {
+            up != null -> "Naik ke ${up.parentName}"
+            (item as HomeItem.FolderItem).count == 0 -> "Kosong"
+            else -> "${(item as HomeItem.FolderItem).count} isi"
+        }
+        holder.menuBtn.visibility = if (up != null) View.GONE else View.VISIBLE
+        holder.menuBtn.setOnClickListener { folder?.let { showFolderOptionsDialog(it) } }
+        val rotations = floatArrayOf(-1f, 0.8f, 0.6f, -0.7f, -0.5f, 0.9f)
+        card.rotation = rotations[position % rotations.size]
+        card.contentDescription = if (up != null) "Kembali, ${holder.countView.text}" else "Folder ${folder!!.name}, ${holder.countView.text}"
+        return card
     }
 
     private class CardViewHolder(

@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import com.example.tulis.ink.InkBridge
 import com.example.tulis.ink.StrokeItem
+import com.example.tulis.model.Folder
 import com.example.tulis.model.NoteMode
 import com.example.tulis.model.NotebookMeta
 import com.example.tulis.model.PageOrientation
@@ -126,7 +127,8 @@ class NotebookRepository(private val context: Context) {
                 lastPage = lastPage,
                 paperStyle = paperStyle,
                 paperSpacing = paperSpacing,
-                orientation = orientation
+                orientation = orientation,
+                folderId = obj.optString("folderId", "").ifEmpty { null }
             )
         } catch (t: Throwable) {
             null
@@ -144,6 +146,7 @@ class NotebookRepository(private val context: Context) {
         obj.put("paper", meta.paperStyle.name)
         obj.put("paperSpacing", meta.paperSpacing.toDouble())
         obj.put("orientation", meta.orientation.name)
+        meta.folderId?.let { obj.put("folderId", it) }
 
         val vpArr = JSONArray()
         vpArr.put(meta.vpScale.toDouble())
@@ -175,15 +178,183 @@ class NotebookRepository(private val context: Context) {
                 }
             }
         }
+        val known = listFolders().mapTo(HashSet()) { it.id }
+        for (m in result) {
+            if (m.folderId != null && m.folderId !in known) m.folderId = null
+        }
         result.sortByDescending { it.updatedAt }
         return result
+    }
+
+    private val foldersFile: File
+        get() = File(notebooksDir, "folders.json")
+
+    @Synchronized
+    fun listFolders(): List<Folder> {
+        val f = foldersFile
+        if (!f.exists()) return emptyList()
+        return try {
+            val arr = JSONObject(f.readText()).getJSONArray("folders")
+            val out = ArrayList<Folder>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                out.add(
+                    Folder(
+                        id = o.getString("id"),
+                        name = o.getString("name"),
+                        parentId = o.optString("parentId", "").ifEmpty { null },
+                        createdAt = o.optLong("createdAt", 0L)
+                    )
+                )
+            }
+            val ids = out.mapTo(HashSet()) { it.id }
+            out.forEach { if (it.parentId != null && it.parentId !in ids) it.parentId = null }
+            out.forEach { if (hasCycle(it, out)) it.parentId = null }
+            out
+        } catch (t: Throwable) {
+            f.renameTo(File(f.parentFile, "folders.json.corrupt"))
+            emptyList()
+        }
+    }
+
+    private fun hasCycle(start: Folder, all: List<Folder>): Boolean {
+        val byId = all.associateBy { it.id }
+        var cur = start.parentId
+        var steps = 0
+        while (cur != null) {
+            if (cur == start.id || steps++ > all.size) return true
+            cur = byId[cur]?.parentId
+        }
+        return false
+    }
+
+    private fun writeFolders(folders: List<Folder>) {
+        val arr = JSONArray()
+        for (fo in folders) {
+            val o = JSONObject()
+            o.put("id", fo.id)
+            o.put("name", fo.name)
+            fo.parentId?.let { o.put("parentId", it) }
+            o.put("createdAt", fo.createdAt)
+            arr.put(o)
+        }
+        val json = JSONObject().put("v", 1).put("folders", arr).toString()
+        atomicWriteFile(foldersFile) { it.write(json.toByteArray(Charsets.UTF_8)) }
+    }
+
+    private fun nameTaken(folders: List<Folder>, parentId: String?, name: String, exceptId: String?): Boolean {
+        return folders.any { it.parentId == parentId && it.id != exceptId && it.name.equals(name, ignoreCase = true) }
+    }
+
+    fun descendantFolderIds(id: String): Set<String> {
+        val all = listFolders()
+        val out = HashSet<String>()
+        val queue = ArrayDeque<String>()
+        queue.add(id)
+        while (queue.isNotEmpty()) {
+            val cur = queue.removeFirst()
+            for (fo in all) {
+                if (fo.parentId == cur && out.add(fo.id)) queue.add(fo.id)
+            }
+        }
+        return out
+    }
+
+    @Synchronized
+    fun createFolder(name: String, parentId: String?): Folder? {
+        val clean = name.trim()
+        if (clean.isEmpty()) return null
+        val all = listFolders().toMutableList()
+        if (parentId != null && all.none { it.id == parentId }) return null
+        if (nameTaken(all, parentId, clean, null)) return null
+        val folder = Folder(UUID.randomUUID().toString(), clean, parentId, System.currentTimeMillis())
+        all.add(folder)
+        return try {
+            writeFolders(all)
+            folder
+        } catch (t: Throwable) {
+            null
+        }
+    }
+
+    @Synchronized
+    fun renameFolder(id: String, name: String): Boolean {
+        val clean = name.trim()
+        if (clean.isEmpty()) return false
+        val all = listFolders()
+        val target = all.firstOrNull { it.id == id } ?: return false
+        if (nameTaken(all, target.parentId, clean, id)) return false
+        target.name = clean
+        return try {
+            writeFolders(all)
+            true
+        } catch (t: Throwable) {
+            false
+        }
+    }
+
+    @Synchronized
+    fun moveFolder(id: String, newParentId: String?): Boolean {
+        val all = listFolders()
+        val target = all.firstOrNull { it.id == id } ?: return false
+        if (newParentId != null) {
+            if (newParentId == id || newParentId in descendantFolderIds(id)) return false
+            if (all.none { it.id == newParentId }) return false
+        }
+        if (nameTaken(all, newParentId, target.name, id)) return false
+        target.parentId = newParentId
+        return try {
+            writeFolders(all)
+            true
+        } catch (t: Throwable) {
+            false
+        }
+    }
+
+    @Synchronized
+    fun deleteFolder(id: String) {
+        flush()
+        val all = listFolders().toMutableList()
+        val target = all.firstOrNull { it.id == id } ?: return
+        val parent = target.parentId
+        all.remove(target)
+        for (fo in all) {
+            if (fo.parentId == id) fo.parentId = parent
+        }
+        try {
+            writeFolders(all)
+            val dir = notebooksDir.listFiles() ?: return
+            for (d in dir) {
+                if (!d.isDirectory || d.name == ".trash") continue
+                val meta = parseMeta(File(d, "meta.json")) ?: continue
+                if (meta.folderId == id) {
+                    meta.folderId = parent
+                    writeMetaSync(meta)
+                }
+            }
+        } catch (t: Throwable) {
+        }
+    }
+
+    @Synchronized
+    fun moveNotebook(id: String, folderId: String?): Boolean {
+        flush()
+        if (folderId != null && listFolders().none { it.id == folderId }) return false
+        val meta = loadMeta(id) ?: return false
+        meta.folderId = folderId
+        return try {
+            writeMetaSync(meta)
+            true
+        } catch (t: Throwable) {
+            false
+        }
     }
 
     fun defaultTitle(): String {
         return "Catatan " + SimpleDateFormat("d MMM HH.mm", Locale("id", "ID")).format(Date())
     }
 
-    fun create(title: String, mode: NoteMode, orientation: PageOrientation = PageOrientation.PORTRAIT): NotebookMeta {
+    fun create(title: String, mode: NoteMode, orientation: PageOrientation = PageOrientation.PORTRAIT, folderId: String? = null): NotebookMeta {
         val finalTitle = if (title.isBlank()) defaultTitle() else title
         val id = UUID.randomUUID().toString()
         val defaultPaperStyle = if (mode == NoteMode.INFINITE) PaperStyle.DOTS else PaperStyle.PLAIN
@@ -199,7 +370,8 @@ class NotebookRepository(private val context: Context) {
             lastPage = 0,
             paperStyle = defaultPaperStyle,
             paperSpacing = 28f,
-            orientation = orientation
+            orientation = orientation,
+            folderId = folderId
         )
         notebookDir(id)
         writeMetaSync(meta)
