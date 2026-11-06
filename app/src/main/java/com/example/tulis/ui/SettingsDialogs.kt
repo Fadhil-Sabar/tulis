@@ -14,6 +14,7 @@ import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import kotlin.math.roundToInt
+import com.example.tulis.model.PageOrientation
 import com.example.tulis.model.PaperStyle
 
 fun showUiSettingsDialog(activity: Activity, onApplied: () -> Unit) {
@@ -307,6 +308,8 @@ fun showPaperDialog(
     activity: Activity,
     style: PaperStyle,
     spacing: Float,
+    currentOrientation: PageOrientation? = null,
+    onOrientation: ((PageOrientation) -> Unit)? = null,
     onChanged: (PaperStyle, Float) -> Unit
 ) {
     val density = activity.resources.displayMetrics.density
@@ -561,12 +564,66 @@ fun showPaperDialog(
 
     updateStyleSelection()
 
-    val btnRow = LinearLayout(activity).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.END
+    var dialogRef: AlertDialog? = null
+
+    if (currentOrientation != null && onOrientation != null) {
+        val orientLabel = TextView(activity).apply {
+            text = "Orientasi halaman"
+            setTextColor(Palette.INK)
+            textSize = 16f
+            typeface = Fonts.ui(context)
+        }
+        dialogView.addView(
+            orientLabel,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                bottomMargin = dp(8f)
+            }
+        )
+        val orientRow = LinearLayout(activity).apply { this.orientation = LinearLayout.HORIZONTAL }
+        for ((o, name) in listOf(PageOrientation.PORTRAIT to "Potret", PageOrientation.LANDSCAPE to "Lanskap")) {
+            val sel = o == currentOrientation
+            val chip = TextView(activity).apply {
+                text = name
+                textSize = 14f
+                typeface = Fonts.ui(context)
+                gravity = Gravity.CENTER
+                minimumHeight = dp(44f)
+                setPadding(dp(18f), dp(4f), dp(18f), dp(4f))
+                setTextColor(if (sel) Palette.PAPER else Palette.INK)
+                background = SketchDrawable(
+                    fill = if (sel) Palette.INK else Palette.CARD,
+                    stroke = if (sel) Palette.INK else Palette.INK_SOFT,
+                    cornerDp = 8f
+                )
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Orientasi halaman: $name"
+                setOnClickListener {
+                    if (!sel) {
+                        dialogRef?.dismiss()
+                        onOrientation(o)
+                    }
+                }
+            }
+            orientRow.addView(
+                chip,
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    marginEnd = dp(8f)
+                }
+            )
+        }
+        dialogView.addView(
+            orientRow,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                bottomMargin = dp(20f)
+            }
+        )
     }
 
-    var dialogRef: AlertDialog? = null
+    val btnRow = LinearLayout(activity).apply {
+        this.orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.END
+    }
 
     val doneBtn = TextView(activity).apply {
         text = "Selesai"

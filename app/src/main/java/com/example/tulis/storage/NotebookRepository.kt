@@ -558,6 +558,17 @@ class NotebookRepository(private val context: Context) {
         }
     }
 
+    fun deleteAllThumbsAsync(id: String, pageCount: Int) {
+        executor.execute {
+            for (i in 0 until pageCount) {
+                try {
+                    pageThumbFile(id, i).delete()
+                } catch (t: Throwable) {
+                }
+            }
+        }
+    }
+
     fun savePageThumbAsync(id: String, index: Int, bitmap: Bitmap) {
         executor.execute {
             try {

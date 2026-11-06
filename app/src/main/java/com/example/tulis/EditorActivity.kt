@@ -213,6 +213,7 @@ class EditorActivity : Activity() {
                         loadingPages.remove(idx)
                         if (s.generation == genAtRequest && s.get(idx) == null && loaded != null) {
                             s.attach(idx, loaded)
+                            ensurePageThumb(idx, loaded)
                             canvasView.invalidatePages()
                         }
                     }
@@ -383,6 +384,7 @@ class EditorActivity : Activity() {
                                 loadingPages.remove(idx)
                                 if (s.generation == genAtRequest && s.get(idx) == null && loaded != null) {
                                     s.attach(idx, loaded)
+                                    ensurePageThumb(idx, loaded)
                                     canvasView.invalidatePages()
                                 }
                             }
@@ -1124,7 +1126,14 @@ class EditorActivity : Activity() {
             isFocusable = true
             contentDescription = "Kertas"
             setOnClickListener {
-                showPaperDialog(this@EditorActivity, m.paperStyle, m.paperSpacing) { s, sp ->
+                val paged = m.mode == NoteMode.PAGED
+                showPaperDialog(
+                    this@EditorActivity,
+                    m.paperStyle,
+                    m.paperSpacing,
+                    if (paged) m.orientation else null,
+                    if (paged) { o -> confirmOrientationChange(o) } else null
+                ) { s, sp ->
                     m.paperStyle = s
                     m.paperSpacing = sp
                     canvasView.setPaper(s, sp)
@@ -3465,6 +3474,72 @@ class EditorActivity : Activity() {
         mainHandler.removeCallbacks(autosaveRunnable)
         isAutosavePending = true
         mainHandler.postDelayed(autosaveRunnable, 1200L)
+    }
+
+    private fun confirmOrientationChange(target: PageOrientation) {
+        val m = meta ?: return
+        flushAutosave(immediateThumb = true)
+        val count = m.pageCount
+        val newW = target.pageW
+        val newH = target.pageH
+        var clipped = 0
+        val box = RectF()
+        fun finish() {
+            val msg = StringBuilder("Orientasi halaman diubah ke ${if (target == PageOrientation.LANDSCAPE) "lanskap" else "potret"}. Riwayat urungkan akan direset.")
+            if (clipped > 0) {
+                msg.append("\n\n$clipped halaman punya tulisan di luar batas baru. Tulisan itu tersembunyi sampai orientasi dikembalikan.")
+            }
+            AlertDialog.Builder(this)
+                .setTitle("Ubah orientasi?")
+                .setMessage(msg.toString())
+                .setNegativeButton("Batal", null)
+                .setPositiveButton("Ubah") { _, _ ->
+                    m.orientation = target
+                    m.lastPage = currentPageIndex
+                    isMetaDirty = true
+                    saveMeta()
+                    repo.deleteAllThumbsAsync(notebookId, count)
+                    thumbMemoryCache.evictAll()
+                    recreate()
+                }
+                .show()
+        }
+        fun scan(i: Int) {
+            if (i >= count) {
+                finish()
+                return
+            }
+            repo.loadPage(notebookId, i) { p ->
+                var out = false
+                for (st in p.strokes) {
+                    if (st.worldBounds(box) && (box.right > newW || box.bottom > newH)) {
+                        out = true
+                        break
+                    }
+                }
+                if (!out) {
+                    for (t in p.texts) {
+                        t.worldBounds(box)
+                        if (box.right > newW || box.bottom > newH) {
+                            out = true
+                            break
+                        }
+                    }
+                }
+                if (out) clipped++
+                scan(i + 1)
+            }
+        }
+        scan(0)
+    }
+
+    private fun ensurePageThumb(idx: Int, page: PageContent) {
+        if (repo.pageThumbFile(notebookId, idx).exists()) return
+        val bmp = canvasView.renderPageThumbnail(page, 192)
+        if (idx == 0) repo.saveThumbAsync(notebookId, bmp)
+        repo.savePageThumbAsync(notebookId, idx, bmp)
+        thumbMemoryCache.put("${notebookId}_$idx", bmp)
+        if (isTablet) refreshTabletPageRail()
     }
 
     private fun flushAutosave(immediateThumb: Boolean) {
