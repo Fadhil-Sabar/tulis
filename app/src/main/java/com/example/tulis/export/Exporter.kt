@@ -22,7 +22,8 @@ enum class ExportFormat { PDF, PNG }
 class ExportOptions(
     val format: ExportFormat,
     val allPages: Boolean,
-    val withPaper: Boolean
+    val withPaper: Boolean,
+    val pxPerUnit: Float = 2f
 )
 
 class ExportJob(
@@ -42,7 +43,6 @@ class ExportCancelled : Exception()
 object Exporter {
     private const val PDF_PT_PER_UNIT = 0.595f
     private const val PDF_MAX_PT = 14400f
-    private const val PNG_PX_PER_UNIT = 2f
     private const val PNG_MAX_PIXELS = 16_000_000f
     private const val PNG_MAX_SIDE = 8192f
     private const val INFINITE_MARGIN = 40f
@@ -139,7 +139,7 @@ object Exporter {
         }
         checkCancel(cancel)
 
-        var scale = PNG_PX_PER_UNIT
+        var scale = job.options.pxPerUnit
         scale = min(scale, sqrt(PNG_MAX_PIXELS / (world.width() * world.height())))
         scale = min(scale, PNG_MAX_SIDE / max(world.width(), world.height()))
 

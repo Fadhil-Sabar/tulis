@@ -100,8 +100,18 @@ fun showVaultDialog(activity: Activity, onPick: () -> Unit, onRestored: () -> Un
             }
         }
         s.lastError?.let { line(infoBox, "Galat: $it", Palette.RED) }
-        for ((title, reason) in s.attention) {
-            line(infoBox, "• $title — $reason", Palette.INK_SOFT, 15f)
+        for (item in sync.attentionItems()) {
+            infoBox.addView(TextView(activity).apply {
+                text = "• ${item.title} — ${item.reason} ›"
+                setTextColor(Palette.INK)
+                textSize = 15f
+                typeface = Fonts.ui(context)
+                background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK_SOFT, variant = 2)
+                setPadding(dp(12f), dp(8f), dp(12f), dp(8f))
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { showConflictDialog(activity, item) { render(sync.status()) } }
+            }, block(8f))
         }
 
         val needsPick = s.phase == VaultSync.Phase.NOT_CONFIGURED || s.phase == VaultSync.Phase.NEED_REPICK
