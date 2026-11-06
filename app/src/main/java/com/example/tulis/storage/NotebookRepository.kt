@@ -8,6 +8,7 @@ import com.example.tulis.ink.InkBridge
 import com.example.tulis.ink.StrokeItem
 import com.example.tulis.model.NoteMode
 import com.example.tulis.model.NotebookMeta
+import com.example.tulis.model.PaperStyle
 import com.example.tulis.model.PageContent
 import com.example.tulis.model.TextItem
 import org.json.JSONArray
@@ -96,6 +97,16 @@ class NotebookRepository(private val context: Context) {
                 }
             }
 
+            val defaultStyle = if (mode == NoteMode.INFINITE) PaperStyle.DOTS else PaperStyle.PLAIN
+            val paperStr = obj.optString("paper", "")
+            val paperStyle = try {
+                if (paperStr.isNotEmpty()) PaperStyle.valueOf(paperStr) else defaultStyle
+            } catch (e: Exception) {
+                defaultStyle
+            }
+            val rawSpacing = obj.optDouble("paperSpacing", 28.0).toFloat()
+            val paperSpacing = rawSpacing.coerceIn(12f, 120f)
+
             NotebookMeta(
                 id = id,
                 title = title,
@@ -105,7 +116,9 @@ class NotebookRepository(private val context: Context) {
                 vpScale = vpScale,
                 vpTx = vpTx,
                 vpTy = vpTy,
-                lastPage = lastPage
+                lastPage = lastPage,
+                paperStyle = paperStyle,
+                paperSpacing = paperSpacing
             )
         } catch (t: Throwable) {
             null
@@ -120,6 +133,8 @@ class NotebookRepository(private val context: Context) {
         obj.put("pageCount", meta.pageCount)
         obj.put("updatedAt", meta.updatedAt)
         obj.put("lastPage", meta.lastPage)
+        obj.put("paper", meta.paperStyle.name)
+        obj.put("paperSpacing", meta.paperSpacing.toDouble())
 
         val vpArr = JSONArray()
         vpArr.put(meta.vpScale.toDouble())
@@ -162,6 +177,7 @@ class NotebookRepository(private val context: Context) {
     fun create(title: String, mode: NoteMode): NotebookMeta {
         val finalTitle = if (title.isBlank()) defaultTitle() else title
         val id = UUID.randomUUID().toString()
+        val defaultPaperStyle = if (mode == NoteMode.INFINITE) PaperStyle.DOTS else PaperStyle.PLAIN
         val meta = NotebookMeta(
             id = id,
             title = finalTitle,
@@ -171,7 +187,9 @@ class NotebookRepository(private val context: Context) {
             vpScale = 1f,
             vpTx = 0f,
             vpTy = 0f,
-            lastPage = 0
+            lastPage = 0,
+            paperStyle = defaultPaperStyle,
+            paperSpacing = 28f
         )
         notebookDir(id)
         writeMetaSync(meta)
@@ -188,6 +206,12 @@ class NotebookRepository(private val context: Context) {
                 writeMetaSync(meta)
             } catch (t: Throwable) {
             }
+        }
+    }
+
+    fun afterPending(cb: () -> Unit) {
+        executor.execute {
+            mainHandler.post(cb)
         }
     }
 

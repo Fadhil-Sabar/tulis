@@ -21,6 +21,8 @@ import com.example.tulis.ink.StrokeItem
 import com.example.tulis.model.BrushKind
 import com.example.tulis.model.NoteMode
 import com.example.tulis.model.PageContent
+import com.example.tulis.model.PageStack
+import com.example.tulis.model.PaperStyle
 import com.example.tulis.model.TextItem
 import com.example.tulis.model.Tool
 import com.example.tulis.model.Viewport
@@ -84,6 +86,18 @@ class NoteCanvasView @JvmOverloads constructor(
 
     private val eraseHitRadiusDp = 12f
     private val eraseBatch = ArrayList<StrokeItem>()
+    private val erasePages = ArrayList<PageContent>()
+    private val erasePageIndices = ArrayList<Int>()
+
+    private var activeTargetPage: PageContent? = null
+    private var textEditPage: PageContent? = null
+
+    private var lastReportedVisiblePage = -1
+    private var lastReportedWindowFirst = -1
+    private var lastReportedWindowLast = -1
+
+    private val tmpVisibleRect = RectF()
+    private val tmpPageMatrix = Matrix()
 
     private var pendingFit = false
     private var hasUserMovedViewport = false
@@ -115,7 +129,7 @@ class NoteCanvasView @JvmOverloads constructor(
 
                 viewport.pan(dx, dy)
                 clampViewportIfNeeded()
-                listener?.onViewportChanged()
+                notifyViewportChanged()
 
                 if (!scroller.isFinished) {
                     postOnAnimation(this)
@@ -136,7 +150,7 @@ class NoteCanvasView @JvmOverloads constructor(
             hasUserMovedViewport = true
             viewport.zoomAt(factor, focusX, focusY)
             clampViewportIfNeeded()
-            listener?.onViewportChanged()
+            notifyViewportChanged()
             return true
         }
     }
@@ -156,13 +170,19 @@ class NoteCanvasView @JvmOverloads constructor(
                 sizePx = sizePx,
                 strokeToWorld = inv
             )
-            val p = canvasLayer.page
+            val s = canvasLayer.stack
+            val p = if (s != null) activeTargetPage else canvasLayer.page
             if (p != null) {
                 p.addStroke(item)
-                canvasLayer.onStrokeAppended()
+                if (s != null) {
+                    canvasLayer.onStrokeAppended(p)
+                } else {
+                    canvasLayer.onStrokeAppended()
+                }
                 listener?.onContentChanged()
                 listener?.onHistoryChanged()
             }
+            activeTargetPage = null
             if (finishedStrokeIds.isNotEmpty()) {
                 liveInk.clearFinished(finishedStrokeIds)
                 finishedStrokeIds.clear()
@@ -201,8 +221,123 @@ class NoteCanvasView @JvmOverloads constructor(
 
     fun getPage(): PageContent? = canvasLayer.page
 
+    fun setStack(s: PageStack?) {
+        canvasLayer.stack = s
+        lastReportedVisiblePage = -1
+        lastReportedWindowFirst = -1
+        lastReportedWindowLast = -1
+        canvasLayer.invalidate()
+        notifyViewportChanged()
+    }
+
+    fun getStack(): PageStack? = canvasLayer.stack
+
+    fun invalidatePages() {
+        canvasLayer.invalidate()
+    }
+
+    fun scrollToPage(i: Int) {
+        val s = canvasLayer.stack ?: return
+        if (i < 0 || i >= s.pageCount) return
+        val margin = 16f * resources.displayMetrics.density
+        val targetOffsetY = s.offsetY(i)
+        val scale = viewport.scale
+        val topMargin = fitT + margin
+        val newTy = topMargin - targetOffsetY * scale
+        viewport.set(scale, viewport.tx, newTy)
+        hasUserMovedViewport = true
+        clampViewportIfNeeded()
+        canvasLayer.invalidate()
+        notifyViewportChanged()
+    }
+
+    fun visiblePageIndex(): Int {
+        val s = canvasLayer.stack ?: return 0
+        if (s.pageCount <= 0) return 0
+        val w = width
+        val h = height
+        if (w <= 0 || h <= 0) return 0
+        viewport.visibleWorld(w, h, tmpVisibleRect)
+        val range = s.visibleRange(tmpVisibleRect.top, tmpVisibleRect.bottom)
+        if (range.isEmpty()) return 0
+        var bestPage = range.first
+        var bestOverlap = -1f
+        for (i in range) {
+            val pTop = s.offsetY(i)
+            val pBottom = pTop + s.pageH
+            val overlapTop = maxOf(pTop, tmpVisibleRect.top)
+            val overlapBottom = minOf(pBottom, tmpVisibleRect.bottom)
+            val overlap = overlapBottom - overlapTop
+            if (overlap > bestOverlap) {
+                bestOverlap = overlap
+                bestPage = i
+            }
+        }
+        return bestPage
+    }
+
+    fun canUndo(): Boolean {
+        val s = canvasLayer.stack
+        return if (s != null) {
+            s.canUndo()
+        } else {
+            canvasLayer.page?.canUndo() == true
+        }
+    }
+
+    fun canRedo(): Boolean {
+        val s = canvasLayer.stack
+        return if (s != null) {
+            s.canRedo()
+        } else {
+            canvasLayer.page?.canRedo() == true
+        }
+    }
+
+    private fun notifyViewportChanged() {
+        val s = canvasLayer.stack
+        if (s != null) {
+            val visIdx = visiblePageIndex()
+            if (visIdx != lastReportedVisiblePage) {
+                lastReportedVisiblePage = visIdx
+                listener?.onVisiblePageChanged(visIdx)
+            }
+            val w = width
+            val h = height
+            if (w > 0 && h > 0 && s.pageCount > 0) {
+                viewport.visibleWorld(w, h, tmpVisibleRect)
+                val range = s.visibleRange(tmpVisibleRect.top, tmpVisibleRect.bottom)
+                val first = if (range.isEmpty()) 0 else (range.first - 1).coerceAtLeast(0)
+                val last = if (range.isEmpty()) 0 else (range.last + 1).coerceAtMost(s.pageCount - 1)
+                if (first != lastReportedWindowFirst || last != lastReportedWindowLast) {
+                    lastReportedWindowFirst = first
+                    lastReportedWindowLast = last
+                    listener?.onPageWindowChanged(first, last)
+                }
+            }
+        }
+        listener?.onViewportChanged()
+    }
+
+    fun setPaper(style: PaperStyle, spacing: Float) {
+        canvasLayer.setPaper(style, spacing)
+    }
+
+    fun centerWorldOn(wx: Float, wy: Float) {
+        if (mode == NoteMode.INFINITE) {
+            val scale = viewport.scale
+            val tx = width / 2f - wx * scale
+            val ty = height / 2f - wy * scale
+            viewport.set(scale, tx, ty)
+            hasUserMovedViewport = true
+            canvasLayer.invalidate()
+            notifyViewportChanged()
+        }
+    }
+
     fun applyTextEdit(item: TextItem?, wx: Float, wy: Float, text: String) {
-        val p = canvasLayer.page ?: return
+        val s = canvasLayer.stack
+        val p = if (s != null) (textEditPage ?: return) else (canvasLayer.page ?: return)
         if (item != null) {
             if (text.isEmpty()) {
                 p.removeText(item)
@@ -222,26 +357,47 @@ class NoteCanvasView @JvmOverloads constructor(
                 p.addText(newItem)
             }
         }
+        textEditPage = null
         listener?.onContentChanged()
         listener?.onHistoryChanged()
-        canvasLayer.invalidate()
+        if (s != null) {
+            canvasLayer.invalidateContent(p)
+        } else {
+            canvasLayer.invalidate()
+        }
     }
 
     fun undo() {
-        val p = canvasLayer.page ?: return
-        if (p.undo()) {
-            canvasLayer.invalidateContent()
+        val s = canvasLayer.stack
+        if (s != null) {
+            val p = s.undo() ?: return
+            canvasLayer.invalidateContent(p)
             listener?.onContentChanged()
             listener?.onHistoryChanged()
+        } else {
+            val p = canvasLayer.page ?: return
+            if (p.undo()) {
+                canvasLayer.invalidateContent()
+                listener?.onContentChanged()
+                listener?.onHistoryChanged()
+            }
         }
     }
 
     fun redo() {
-        val p = canvasLayer.page ?: return
-        if (p.redo()) {
-            canvasLayer.invalidateContent()
+        val s = canvasLayer.stack
+        if (s != null) {
+            val p = s.redo() ?: return
+            canvasLayer.invalidateContent(p)
             listener?.onContentChanged()
             listener?.onHistoryChanged()
+        } else {
+            val p = canvasLayer.page ?: return
+            if (p.redo()) {
+                canvasLayer.invalidateContent()
+                listener?.onContentChanged()
+                listener?.onHistoryChanged()
+            }
         }
     }
 
@@ -253,6 +409,8 @@ class NoteCanvasView @JvmOverloads constructor(
                 fitPage()
             } else if (mode == NoteMode.PAGED && !hasUserMovedViewport && (oldw != w || oldh != h)) {
                 fitPage()
+            } else if (canvasLayer.stack != null) {
+                notifyViewportChanged()
             }
         }
     }
@@ -265,7 +423,7 @@ class NoteCanvasView @JvmOverloads constructor(
             viewport.resetCenter(width, height)
             hasUserMovedViewport = false
             canvasLayer.invalidate()
-            listener?.onViewportChanged()
+            notifyViewportChanged()
         }
     }
 
@@ -289,6 +447,7 @@ class NoteCanvasView @JvmOverloads constructor(
             return
         }
         pendingFit = false
+        val s = canvasLayer.stack
         if (mode == NoteMode.PAGED) {
             val margin = 16f * resources.displayMetrics.density
             val areaW = (w - fitL - fitR).toFloat()
@@ -298,7 +457,13 @@ class NoteCanvasView @JvmOverloads constructor(
                 val availH = (areaH - 2f * margin).coerceAtLeast(1f)
                 val newScale = minOf(availW / canvasLayer.pageW, availH / canvasLayer.pageH).coerceIn(0.08f, 16f)
                 val newTx = fitL + (areaW - canvasLayer.pageW * newScale) * 0.5f
-                val newTy = fitT + (areaH - canvasLayer.pageH * newScale) * 0.5f
+                val newTy = if (s != null) {
+                    val visIdx = visiblePageIndex()
+                    val pTop = s.offsetY(visIdx)
+                    fitT + (areaH - canvasLayer.pageH * newScale) * 0.5f - pTop * newScale
+                } else {
+                    fitT + (areaH - canvasLayer.pageH * newScale) * 0.5f
+                }
                 viewport.set(newScale, newTx, newTy)
                 clampViewportIfNeeded()
             } else {
@@ -306,8 +471,14 @@ class NoteCanvasView @JvmOverloads constructor(
                 val newScale = (targetPageWidth / canvasLayer.pageW).coerceIn(0.08f, 16f)
                 val newTx = fitL + (areaW - canvasLayer.pageW * newScale) * 0.5f
                 val topMargin = if (fitT > 0) fitT + margin else 130f * resources.displayMetrics.density
-                val pageHeightPx = canvasLayer.pageH * newScale
-                val newTy = if (pageHeightPx + topMargin <= h) topMargin else 0f
+                val newTy = if (s != null) {
+                    val visIdx = visiblePageIndex()
+                    val pTop = s.offsetY(visIdx)
+                    topMargin - pTop * newScale
+                } else {
+                    val pageHeightPx = canvasLayer.pageH * newScale
+                    if (pageHeightPx + topMargin <= h) topMargin else 0f
+                }
                 viewport.set(newScale, newTx, newTy)
                 clampViewportIfNeeded()
             }
@@ -316,7 +487,59 @@ class NoteCanvasView @JvmOverloads constructor(
         }
         hasUserMovedViewport = false
         canvasLayer.invalidate()
-        listener?.onViewportChanged()
+        notifyViewportChanged()
+    }
+
+    fun renderPageThumbnail(page: PageContent, sizePx: Int): Bitmap {
+        val targetH = sizePx * 130 / 170
+        val bmp = Bitmap.createBitmap(sizePx, targetH, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        canvas.drawColor(Palette.KRAFT)
+
+        val sheetH = (targetH - 16).coerceAtLeast(1).toFloat()
+        val sheetW = sheetH * (canvasLayer.pageW / canvasLayer.pageH)
+        val left = (sizePx - sheetW) / 2f
+        val top = (targetH - sheetH) / 2f
+        val pageRect = RectF(left, top, left + sheetW, top + sheetH)
+
+        paint.style = Paint.Style.FILL
+        paint.color = Palette.SHEET
+        canvas.drawRect(pageRect, paint)
+
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 1.6f
+        paint.color = Palette.INK
+        canvas.drawRect(pageRect, paint)
+
+        if (page.strokes.isNotEmpty() || page.texts.isNotEmpty()) {
+            val scale = sheetW / canvasLayer.pageW
+            val drawMatrix = Matrix()
+            drawMatrix.setScale(scale, scale)
+            drawMatrix.postTranslate(left, top)
+
+            val saveCount = canvas.save()
+            canvas.clipRect(pageRect)
+
+            val tempMat = Matrix()
+            for (stroke in page.strokes) {
+                InkBridge.draw(thumbnailRenderer, canvas, stroke, drawMatrix, tempMat)
+            }
+
+            paint.style = Paint.Style.FILL
+            for (text in page.texts) {
+                paint.color = text.colorArgb
+                paint.textSize = text.sizeWorld * scale
+                val tx = left + text.x * scale
+                val ty = top + text.y * scale + paint.textSize
+                canvas.drawText(text.text, tx, ty, paint)
+            }
+
+            canvas.restoreToCount(saveCount)
+        }
+
+        return bmp
     }
 
     fun renderThumbnail(sizePx: Int): Bitmap {
@@ -459,6 +682,11 @@ class NoteCanvasView @JvmOverloads constructor(
         finishedStrokeIds.clear()
         canvasLayer.trimCache()
         canvasLayer.page = null
+        canvasLayer.stack = null
+        activeTargetPage = null
+        textEditPage = null
+        erasePages.clear()
+        erasePageIndices.clear()
         listener = null
     }
 
@@ -648,10 +876,7 @@ class NoteCanvasView @JvmOverloads constructor(
                                 isTemporaryEraser = buttonPressed
                             } else if (!targetEraser && gestureState == GestureState.ERASE && isTemporaryEraser) {
                                 eraseBatch.clear()
-                                val p = canvasLayer.page
-                                if (p != null) {
-                                    p.endEraseGroup()
-                                }
+                                endEraseGroups()
                                 isTemporaryEraser = false
                                 if (tool == Tool.PEN || tool == Tool.MARKER || tool == Tool.HIGHLIGHTER) {
                                     startDrawing(event, pointerIndex, wx, wy)
@@ -695,7 +920,7 @@ class NoteCanvasView @JvmOverloads constructor(
                                 }
                             } else if (gestureState == GestureState.ERASE) {
                                 eraseBatch.clear()
-                                canvasLayer.page?.endEraseGroup()
+                                endEraseGroups()
                             }
                             canvasLayer.setViewportGestureActive(false)
                             endGesture()
@@ -817,9 +1042,31 @@ class NoteCanvasView @JvmOverloads constructor(
     }
 
     private fun startDrawing(event: MotionEvent, pointerIndex: Int, wx: Float, wy: Float) {
-        if (mode == NoteMode.PAGED && !canvasLayer.insidePage(wx, wy)) {
-            gestureState = GestureState.NONE
-            return
+        val s = canvasLayer.stack
+        val inv = Matrix()
+        if (s != null) {
+            val hitIdx = canvasLayer.hitPage(wx, wy, tmpPoints)
+            if (hitIdx < 0) {
+                gestureState = GestureState.NONE
+                return
+            }
+            val targetPage = s.get(hitIdx)
+            if (targetPage == null) {
+                gestureState = GestureState.NONE
+                return
+            }
+            activeTargetPage = targetPage
+            canvasLayer.pageToScreen(hitIdx, tmpPageMatrix)
+            if (!tmpPageMatrix.invert(inv)) {
+                inv.reset()
+            }
+        } else {
+            if (mode == NoteMode.PAGED && !canvasLayer.insidePage(wx, wy)) {
+                gestureState = GestureState.NONE
+                return
+            }
+            activeTargetPage = null
+            viewport.worldToScreen.invert(inv)
         }
 
         val brushKind = when (tool) {
@@ -830,8 +1077,6 @@ class NoteCanvasView @JvmOverloads constructor(
         val currentScale = viewport.scale
         val strokeSizePx = widthWorld * currentScale
 
-        val inv = Matrix()
-        viewport.worldToScreen.invert(inv)
         activeStrokeMatrix = inv
 
         motionPredictor.record(event)
@@ -848,14 +1093,23 @@ class NoteCanvasView @JvmOverloads constructor(
     }
 
     private fun startErasing(wx: Float, wy: Float) {
-        val p = canvasLayer.page
-        if (p != null) {
-            p.beginEraseGroup()
+        val s = canvasLayer.stack
+        if (s != null) {
             eraseBatch.clear()
+            erasePages.clear()
+            erasePageIndices.clear()
             gestureState = GestureState.ERASE
             performEraseAt(wx, wy)
         } else {
-            gestureState = GestureState.NONE
+            val p = canvasLayer.page
+            if (p != null) {
+                p.beginEraseGroup()
+                eraseBatch.clear()
+                gestureState = GestureState.ERASE
+                performEraseAt(wx, wy)
+            } else {
+                gestureState = GestureState.NONE
+            }
         }
     }
 
@@ -869,10 +1123,7 @@ class NoteCanvasView @JvmOverloads constructor(
             }
         } else if (gestureState == GestureState.ERASE) {
             eraseBatch.clear()
-            val p = canvasLayer.page
-            if (p != null) {
-                p.endEraseGroup()
-            }
+            endEraseGroups()
         }
         gestureState = GestureState.PINCH
         canvasLayer.setViewportGestureActive(true)
@@ -915,7 +1166,7 @@ class NoteCanvasView @JvmOverloads constructor(
                     hasUserMovedViewport = true
                     viewport.pan(dx, dy)
                     clampViewportIfNeeded()
-                    listener?.onViewportChanged()
+                    notifyViewportChanged()
                 }
             }
 
@@ -955,10 +1206,7 @@ class NoteCanvasView @JvmOverloads constructor(
 
             GestureState.ERASE -> {
                 eraseBatch.clear()
-                val p = canvasLayer.page
-                if (p != null) {
-                    p.endEraseGroup()
-                }
+                endEraseGroups()
             }
 
             GestureState.PAN -> {
@@ -985,8 +1233,24 @@ class NoteCanvasView @JvmOverloads constructor(
                             screenToWorld(sx, sy, tmpPoints)
                             val wx = tmpPoints[0]
                             val wy = tmpPoints[1]
-                            val hitItem = hitTestText(wx, wy)
-                            listener?.onRequestTextEdit(hitItem, wx, wy)
+                            val s = canvasLayer.stack
+                            if (s != null) {
+                                val hitIdx = canvasLayer.hitPage(wx, wy, tmpPoints)
+                                if (hitIdx >= 0) {
+                                    val targetPage = s.get(hitIdx)
+                                    if (targetPage != null) {
+                                        val lx = tmpPoints[0]
+                                        val ly = tmpPoints[1]
+                                        val hitItem = hitTestTextInPage(targetPage, lx, ly)
+                                        textEditPage = targetPage
+                                        listener?.onRequestTextEdit(hitItem, lx, ly)
+                                    }
+                                }
+                            } else {
+                                textEditPage = null
+                                val hitItem = hitTestText(wx, wy)
+                                listener?.onRequestTextEdit(hitItem, wx, wy)
+                            }
                         }
                     }
                 }
@@ -1009,10 +1273,7 @@ class NoteCanvasView @JvmOverloads constructor(
 
             GestureState.ERASE -> {
                 eraseBatch.clear()
-                val p = canvasLayer.page
-                if (p != null) {
-                    p.endEraseGroup()
-                }
+                endEraseGroups()
             }
 
             GestureState.PAN, GestureState.PINCH, GestureState.NONE -> {
@@ -1030,34 +1291,87 @@ class NoteCanvasView @JvmOverloads constructor(
         recycleVelocityTracker()
     }
 
+    private fun endEraseGroups() {
+        val s = canvasLayer.stack
+        if (s != null) {
+            val count = erasePages.size
+            if (count > 0) {
+                for (i in 0 until count) {
+                    erasePages[i].endEraseGroup()
+                }
+                erasePages.clear()
+                erasePageIndices.clear()
+                listener?.onHistoryChanged()
+            }
+        } else {
+            val p = canvasLayer.page
+            if (p != null) {
+                p.endEraseGroup()
+                listener?.onHistoryChanged()
+            }
+        }
+    }
+
     private fun performEraseAt(wx: Float, wy: Float) {
-        val p = canvasLayer.page ?: return
+        val s = canvasLayer.stack
+        val p: PageContent
+        val localX: Float
+        val localY: Float
+        if (s != null) {
+            val hitIdx = canvasLayer.hitPage(wx, wy, tmpPoints)
+            if (hitIdx < 0) return
+            val page = s.get(hitIdx) ?: return
+            p = page
+            localX = tmpPoints[0]
+            localY = tmpPoints[1]
+            if (!erasePageIndices.contains(hitIdx)) {
+                erasePageIndices.add(hitIdx)
+                erasePages.add(p)
+                p.beginEraseGroup()
+            }
+        } else {
+            val page = canvasLayer.page ?: return
+            p = page
+            localX = wx
+            localY = wy
+        }
+
         val currentScale = viewport.scale
         val radiusWorld = (eraseHitRadiusDp * resources.displayMetrics.density) / currentScale
 
-        var erasedAny = false
-        val it = p.strokes.iterator()
-        while (it.hasNext()) {
-            val stroke = it.next()
-            if (stroke.hitTest(wx, wy, radiusWorld)) {
-                it.remove()
+        eraseBatch.clear()
+        val strokes = p.strokes
+        val count = strokes.size
+        for (i in 0 until count) {
+            val stroke = strokes[i]
+            if (stroke.hitTest(localX, localY, radiusWorld)) {
                 eraseBatch.add(stroke)
-                erasedAny = true
             }
         }
 
-        if (erasedAny) {
-            canvasLayer.invalidateContent()
+        if (eraseBatch.isNotEmpty()) {
+            p.removeStrokes(eraseBatch)
+            eraseBatch.clear()
+            if (s != null) {
+                canvasLayer.invalidateContent(p)
+            } else {
+                canvasLayer.invalidateContent()
+            }
+            listener?.onContentChanged()
         }
     }
 
     private fun hitTestText(wx: Float, wy: Float): TextItem? {
         val p = canvasLayer.page ?: return null
+        return hitTestTextInPage(p, wx, wy)
+    }
+
+    private fun hitTestTextInPage(page: PageContent, lx: Float, ly: Float): TextItem? {
         val bounds = tmpRectF
-        for (i in p.texts.indices.reversed()) {
-            val text = p.texts[i]
+        for (i in page.texts.indices.reversed()) {
+            val text = page.texts[i]
             text.worldBounds(bounds)
-            if (bounds.contains(wx, wy)) {
+            if (bounds.contains(lx, ly)) {
                 return text
             }
         }
@@ -1072,7 +1386,9 @@ class NoteCanvasView @JvmOverloads constructor(
 
     private fun clampViewportIfNeeded() {
         if (mode == NoteMode.PAGED) {
-            viewport.clampToPage(width, height, canvasLayer.pageW, canvasLayer.pageH)
+            val s = canvasLayer.stack
+            val totalH = s?.totalHeight() ?: canvasLayer.pageH
+            viewport.clampToPage(width, height, canvasLayer.pageW, totalH)
         }
     }
 

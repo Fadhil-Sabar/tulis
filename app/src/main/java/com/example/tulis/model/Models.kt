@@ -4,6 +4,7 @@ import android.graphics.RectF
 import com.example.tulis.ink.StrokeItem
 
 enum class NoteMode { INFINITE, PAGED }
+enum class PaperStyle { PLAIN, DOTS, GRID, LINES }
 enum class Tool { PEN, MARKER, HIGHLIGHTER, ERASER, TEXT, PAN }
 enum class BrushKind { PEN, MARKER, HIGHLIGHTER }
 
@@ -11,7 +12,9 @@ data class NotebookMeta(
     val id: String, var title: String, val mode: NoteMode,
     var pageCount: Int, var updatedAt: Long,
     var vpScale: Float = 1f, var vpTx: Float = 0f, var vpTy: Float = 0f,
-    var lastPage: Int = 0
+    var lastPage: Int = 0,
+    var paperStyle: PaperStyle = PaperStyle.DOTS,
+    var paperSpacing: Float = 28f
 )
 
 class TextItem(
@@ -42,6 +45,7 @@ class PageContent {
     val strokes: MutableList<StrokeItem> = ArrayList()
     val texts: MutableList<TextItem> = ArrayList()
     var revision: Int = 0
+    var onActionPushed: ((PageContent) -> Unit)? = null
 
     private val undoStack: MutableList<Action> = ArrayList()
     private val redoStack: MutableList<Action> = ArrayList()
@@ -119,6 +123,7 @@ class PageContent {
         undoStack.add(action)
         redoStack.clear()
         revision++
+        onActionPushed?.invoke(this)
     }
 
     fun addStroke(s: StrokeItem) {
@@ -171,6 +176,7 @@ class PageContent {
             }
             undoStack.add(group)
             redoStack.clear()
+            onActionPushed?.invoke(this)
         }
     }
 
@@ -195,6 +201,10 @@ class PageContent {
     fun canUndo(): Boolean = undoStack.isNotEmpty()
 
     fun canRedo(): Boolean = redoStack.isNotEmpty()
+
+    fun clearRedo() {
+        redoStack.clear()
+    }
 
     fun snapshot(): PageContent {
         val copy = PageContent()

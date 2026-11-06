@@ -32,11 +32,16 @@ import com.example.tulis.ui.Icon
 import com.example.tulis.ui.IconView
 import com.example.tulis.ui.Palette
 import com.example.tulis.ui.SketchDrawable
+import com.example.tulis.ui.UiPrefs
 import com.example.tulis.ui.UndoBar
 import java.io.File
 import java.util.concurrent.Executors
 
 class TrashActivity : Activity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(UiPrefs.wrap(newBase))
+    }
 
     private lateinit var repo: NotebookRepository
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -221,7 +226,7 @@ class TrashActivity : Activity() {
             )
         }
 
-        val screenWidthDp = resources.configuration.screenWidthDp
+        val screenWidthDp = (resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt()
         val numCols = when {
             screenWidthDp >= 900 -> 4
             screenWidthDp >= 600 -> 3
@@ -1048,7 +1053,7 @@ class TrashActivity : Activity() {
         private val sketchShadowColor: Int = 0,
         private val sketchVariant: Int = -1
     ) : Drawable() {
-        private val density = Resources.getSystem().displayMetrics.density
+        private val density = UiPrefs.systemDensity()
         private val dotSpacing = spacingDp * density
         private val dotRadius = 1.1f * density
         private val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

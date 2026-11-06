@@ -2,6 +2,7 @@ package com.example.tulis
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -16,6 +17,7 @@ import android.os.Looper
 import android.util.LruCache
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
@@ -32,17 +34,24 @@ import com.example.tulis.canvas.NoteCanvasView
 import com.example.tulis.model.NoteMode
 import com.example.tulis.model.NotebookMeta
 import com.example.tulis.model.PageContent
+import com.example.tulis.model.PageStack
 import com.example.tulis.model.TextItem
 import com.example.tulis.model.Tool
 import com.example.tulis.storage.NotebookRepository
 import com.example.tulis.ui.Fonts
 import com.example.tulis.ui.Icon
 import com.example.tulis.ui.IconView
+import com.example.tulis.ui.MinimapView
 import com.example.tulis.ui.Palette
 import com.example.tulis.ui.SketchDrawable
+import com.example.tulis.ui.UiPrefs
 import com.example.tulis.ui.UndoBar
+import com.example.tulis.ui.showPaperDialog
+import com.example.tulis.ui.showUiSettingsDialog
 
 class EditorActivity : Activity() {
+
+    enum class ToolDock { TOP, BOTTOM, LEFT, RIGHT }
 
     companion object {
         const val EXTRA_ID = "id"
@@ -61,7 +70,9 @@ class EditorActivity : Activity() {
 
     private var chipCenter: View? = null
     private var chipZoom: TextView? = null
+    private var tabletZoomPill: TextView? = null
     private var tabletPagePill: TextView? = null
+    private var minimapView: MinimapView? = null
 
     private var pageBar: LinearLayout? = null
     private var btnPrevPage: IconView? = null
@@ -77,6 +88,9 @@ class EditorActivity : Activity() {
 
     private var tabletPageRail: View? = null
     private var tabletSidePanel: View? = null
+    private var tabletToolPanel: View? = null
+    private var tabletBottomRow: LinearLayout? = null
+    private var tabletToolDock: ToolDock = ToolDock.TOP
     private var tabletThumbListContainer: LinearLayout? = null
     private var tabletSideColorViews = mutableMapOf<Int, View>()
     private var tabletSideThickBtns = mutableListOf<View>()
@@ -110,7 +124,10 @@ class EditorActivity : Activity() {
     private var currentPageIndex: Int = 0
     private var pageLoadToken: Int = 0
     private var lastSavedRevision: Int = -1
+    private var pageStack: PageStack? = null
+    private val loadingPages = mutableSetOf<Int>()
     private var lastZoomPct: Int = -1
+    private var pillZoomPct: Int = -1
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var isAutosavePending = false
@@ -121,10 +138,14 @@ class EditorActivity : Activity() {
     private var optionsPopup: PopupWindow? = null
 
     private val isTablet: Boolean
-        get() = resources.configuration.screenWidthDp >= 840
+        get() = UiPrefs.physicalWidthDp(this) >= 840f
 
     private val isPhoneLandscape: Boolean
-        get() = !isTablet && resources.configuration.screenHeightDp < 500
+        get() = !isTablet && UiPrefs.physicalHeightDp(this) < 500f
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(UiPrefs.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -147,6 +168,11 @@ class EditorActivity : Activity() {
         fingerCanDraw = prefs.getBoolean("finger_draws", true)
         isPanelCollapsed = prefs.getBoolean("panel_collapsed", false)
         isRailHidden = prefs.getBoolean("rail_hidden", false)
+        tabletToolDock = try {
+            ToolDock.valueOf(prefs.getString("tool_dock", ToolDock.TOP.name) ?: ToolDock.TOP.name)
+        } catch (_: Exception) {
+            ToolDock.TOP
+        }
 
         currentPageIndex = if (currentMeta.mode == NoteMode.PAGED) {
             currentMeta.lastPage.coerceIn(0, (currentMeta.pageCount - 1).coerceAtLeast(0))
@@ -162,9 +188,30 @@ class EditorActivity : Activity() {
         if (currentMeta.mode == NoteMode.INFINITE) {
             canvasView.viewport.set(currentMeta.vpScale, currentMeta.vpTx, currentMeta.vpTy)
             updateZoomIndicator()
+            loadPage(currentPageIndex)
+        } else {
+            val s = PageStack(currentMeta.pageCount, 1000f, 1414f, PageStack.GAP)
+            pageStack = s
+            canvasView.setStack(s)
+            val windowStart = (currentPageIndex - 1).coerceAtLeast(0)
+            val windowEnd = (currentPageIndex + 1).coerceAtMost(currentMeta.pageCount - 1)
+            for (idx in windowStart..windowEnd) {
+                if (s.get(idx) == null && !loadingPages.contains(idx)) {
+                    loadingPages.add(idx)
+                    val genAtRequest = s.generation
+                    repo.loadPage(notebookId, idx) { loaded ->
+                        loadingPages.remove(idx)
+                        if (s.generation == genAtRequest && s.get(idx) == null && loaded != null) {
+                            s.attach(idx, loaded)
+                            canvasView.invalidatePages()
+                        }
+                    }
+                }
+            }
+            canvasView.post {
+                canvasView.scrollToPage(currentMeta.lastPage)
+            }
         }
-
-        loadPage(currentPageIndex)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -177,6 +224,8 @@ class EditorActivity : Activity() {
         tabletSideThickBtns.clear()
         tabletPageRail = null
         tabletSidePanel = null
+        tabletToolPanel = null
+        tabletBottomRow = null
         tabletThumbListContainer = null
         tabletBtnDeletePage = null
         tabletSideSwitchBtn = null
@@ -187,7 +236,9 @@ class EditorActivity : Activity() {
         tabletSidePanelFull = null
         chipCenter = null
         chipZoom = null
+        tabletZoomPill = null
         tabletPagePill = null
+        minimapView = null
         pageBar = null
         bottomToolbar = null
 
@@ -197,6 +248,7 @@ class EditorActivity : Activity() {
         if (m.mode == NoteMode.INFINITE) {
             updateZoomIndicator()
         } else {
+            canvasView.setStack(pageStack)
             updatePageIndicator()
             if (!canvasView.hasMovedViewport) {
                 canvasView.fitPage()
@@ -282,7 +334,7 @@ class EditorActivity : Activity() {
             colorArgb = activeColor
             widthWorld = activeStrokeWidth
             fingerDraws = fingerCanDraw
-            fitWholePage = isTablet
+            fitWholePage = false
             onStylusDetected = {
                 if (fingerCanDraw) {
                     fingerCanDraw = false
@@ -296,6 +348,7 @@ class EditorActivity : Activity() {
                 override fun onContentChanged() {
                     isMetaDirty = true
                     scheduleAutosave()
+                    minimapView?.refresh()
                 }
 
                 override fun onRequestTextEdit(item: TextItem?, wx: Float, wy: Float) {
@@ -307,13 +360,56 @@ class EditorActivity : Activity() {
                 }
 
                 override fun onViewportChanged() {
-                    if (m.mode == NoteMode.INFINITE) {
-                        updateZoomIndicator()
-                    }
+                    updateZoomIndicator()
+                    minimapView?.refresh()
                     saveMeta()
+                }
+
+                override fun onVisiblePageChanged(index: Int) {
+                    currentPageIndex = index
+                    updatePageIndicator()
+                    if (isTablet) {
+                        refreshTabletPageRail()
+                    }
+                }
+
+                override fun onPageWindowChanged(first: Int, last: Int) {
+                    val s = pageStack ?: return
+                    for (idx in first..last) {
+                        if (s.get(idx) == null && !loadingPages.contains(idx)) {
+                            loadingPages.add(idx)
+                            val genAtRequest = s.generation
+                            repo.loadPage(notebookId, idx) { loaded ->
+                                loadingPages.remove(idx)
+                                if (s.generation == genAtRequest && s.get(idx) == null && loaded != null) {
+                                    s.attach(idx, loaded)
+                                    canvasView.invalidatePages()
+                                }
+                            }
+                        }
+                    }
+                    val dirtyList = s.dirtyPages().toMap()
+                    for (idx in s.residentIndices()) {
+                        if (idx < first - 1 || idx > last + 1) {
+                            val dirtyPage = dirtyList[idx]
+                            if (dirtyPage != null) {
+                                repo.savePageAsync(notebookId, idx, dirtyPage.snapshot())
+                                val bmp = canvasView.renderPageThumbnail(dirtyPage, 192)
+                                if (idx == 0) {
+                                    repo.saveThumbAsync(notebookId, bmp)
+                                }
+                                repo.savePageThumbAsync(notebookId, idx, bmp)
+                                thumbMemoryCache.put("${notebookId}_$idx", bmp)
+                                s.markSaved(dirtyPage)
+                            }
+                            s.evict(idx)
+                            canvasView.invalidatePages()
+                        }
+                    }
                 }
             }
         }
+        canvasView.setPaper(m.paperStyle, m.paperSpacing)
 
         if (isTablet) {
             buildTabletUi(m)
@@ -477,7 +573,7 @@ class EditorActivity : Activity() {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 Gravity.START
             ).apply {
-                setMargins(dp(16f), dp(100f), 0, dp(16f))
+                setMargins(if (tabletToolDock == ToolDock.LEFT) dp(108f) else dp(16f), dp(100f), 0, dp(16f))
             }
             rootLayout.addView(rail, railLp)
             refreshTabletPageRail()
@@ -494,37 +590,147 @@ class EditorActivity : Activity() {
         }
         rootLayout.addView(panel, panelLp)
 
+        val bottomRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        tabletBottomRow = bottomRow
+
         if (m.mode == NoteMode.PAGED) {
-            val pill = TextView(this).apply {
+            val pagePill = TextView(this).apply {
                 background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, variant = 4)
                 setTextColor(Palette.INK)
                 textSize = 18f
                 typeface = Fonts.ui(context)
                 gravity = Gravity.CENTER
                 setPadding(dp(16f), 0, dp(16f), 0)
+                minimumHeight = dp(40f)
                 isClickable = true
                 isFocusable = true
                 setOnClickListener {
                     canvasView.toggleFitMode()
                 }
             }
-            tabletPagePill = pill
-            val pillLp = FrameLayout.LayoutParams(
+            tabletPagePill = pagePill
+            bottomRow.addView(pagePill, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(40f)))
+        }
+
+        val zoomPill = TextView(this).apply {
+            val pct = (canvasView.viewport.scale * 100f).toInt()
+            text = "$pct%"
+            background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, variant = 5)
+            setTextColor(Palette.INK)
+            textSize = 18f
+            typeface = Fonts.ui(context)
+            gravity = Gravity.CENTER
+            setPadding(dp(14f), 0, dp(14f), 0)
+            minimumHeight = dp(40f)
+            isClickable = true
+            isFocusable = true
+            contentDescription = if (m.mode == NoteMode.INFINITE) {
+                "Zoom $pct persen, ketuk untuk mengatur ulang"
+            } else {
+                "Zoom $pct persen, ketuk untuk beralih mode pas"
+            }
+            setOnClickListener {
+                if (m.mode == NoteMode.INFINITE) {
+                    canvasView.viewport.zoomAt(1f / canvasView.viewport.scale, canvasView.width / 2f, canvasView.height / 2f)
+                    updateZoomIndicator()
+                    saveMeta()
+                } else {
+                    canvasView.toggleFitMode()
+                }
+            }
+        }
+        tabletZoomPill = zoomPill
+        pillZoomPct = -1
+        updateZoomIndicator()
+        bottomRow.addView(zoomPill, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(40f)).apply {
+            if (m.mode == NoteMode.PAGED) {
+                marginStart = dp(8f)
+            }
+        })
+
+        val bottomRowLp = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        ).apply {
+            bottomMargin = if (tabletToolDock == ToolDock.BOTTOM) dp(96f) else dp(24f)
+        }
+        rootLayout.addView(bottomRow, bottomRowLp)
+
+        val toolPanel = buildTabletToolPanel(tabletToolDock)
+        tabletToolPanel = toolPanel
+        rootLayout.addView(toolPanel, makeTabletToolPanelLayoutParams(tabletToolDock))
+
+        if (m.mode == NoteMode.PAGED) {
+            updatePageIndicator()
+        }
+
+        if (m.mode == NoteMode.INFINITE && UiPrefs.minimapVisible(this)) {
+            val minimap = MinimapView(this).apply {
+                canvasView = this@EditorActivity.canvasView
+            }
+            minimapView = minimap
+            val minimapLp = FrameLayout.LayoutParams(
+                dp(160f),
+                dp(112f),
+                Gravity.BOTTOM or Gravity.START
+            ).apply {
+                setMargins(dp(16f), 0, 0, dp(16f))
+            }
+            rootLayout.addView(minimap, minimapLp)
+            minimap.refresh()
+            updateTabletLayout()
+        }
+    }
+
+    private fun makeTabletToolPanelLayoutParams(dock: ToolDock): FrameLayout.LayoutParams {
+        return when (dock) {
+            ToolDock.TOP -> FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(40f),
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            ).apply {
+                topMargin = dp(14f)
+            }
+            ToolDock.BOTTOM -> FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             ).apply {
-                bottomMargin = dp(24f)
+                bottomMargin = dp(16f)
             }
-            rootLayout.addView(pill, pillLp)
-            updatePageIndicator()
+            ToolDock.LEFT -> FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.START or Gravity.CENTER_VERTICAL
+            ).apply {
+                topMargin = dp(94f)
+                marginStart = dp(16f)
+            }
+            ToolDock.RIGHT -> FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.END or Gravity.CENTER_VERTICAL
+            ).apply {
+                topMargin = dp(94f)
+                marginEnd = dp(16f)
+            }
         }
     }
 
     private fun applyTabletFitInsets(m: NotebookMeta) {
-        val railW = if (m.mode == NoteMode.PAGED && !isRailHidden) dp(168f) + dp(12f) else 0
+        val railOffset = if (tabletToolDock == ToolDock.LEFT) dp(92f) else 0
+        val railW = if (m.mode == NoteMode.PAGED && !isRailHidden) dp(168f) + dp(12f) + railOffset else 0
+        val panelOffset = if (tabletToolDock == ToolDock.RIGHT) dp(92f) else 0
         val panelW = if (isPanelCollapsed) dp(56f) else dp(232f)
-        canvasView.setFitInsets(dp(16f) + railW, dp(94f), dp(16f) + panelW + dp(12f), dp(16f))
+
+        val inLeft = if (tabletToolDock == ToolDock.LEFT) maxOf(dp(16f) + railW, dp(92f)) else (dp(16f) + railW)
+        val inRight = if (tabletToolDock == ToolDock.RIGHT) maxOf(dp(16f) + panelW + dp(12f), dp(92f)) else (dp(16f) + panelW + dp(12f))
+        val inBottom = if (tabletToolDock == ToolDock.BOTTOM) dp(88f) else dp(16f)
+        canvasView.setFitInsets(inLeft, dp(94f), inRight, inBottom)
     }
 
     private fun updateTabletLayout() {
@@ -533,6 +739,14 @@ class EditorActivity : Activity() {
 
         tabletPageRail?.let { rail ->
             rail.visibility = if (isRailHidden) View.GONE else View.VISIBLE
+            val rLp = rail.layoutParams as? FrameLayout.LayoutParams
+            if (rLp != null) {
+                val startMargin = if (tabletToolDock == ToolDock.LEFT) dp(108f) else dp(16f)
+                if (rLp.marginStart != startMargin) {
+                    rLp.marginStart = startMargin
+                    rail.layoutParams = rLp
+                }
+            }
         }
 
         tabletSidePanel?.let { panel ->
@@ -540,10 +754,38 @@ class EditorActivity : Activity() {
             if (pLp != null) {
                 pLp.width = panelW
                 pLp.height = if (isPanelCollapsed) ViewGroup.LayoutParams.WRAP_CONTENT else ViewGroup.LayoutParams.MATCH_PARENT
+                val endMargin = if (tabletToolDock == ToolDock.RIGHT) dp(108f) else dp(16f)
+                pLp.marginEnd = endMargin
                 panel.layoutParams = pLp
             }
             tabletSidePanelStrip?.visibility = if (isPanelCollapsed) View.VISIBLE else View.GONE
             tabletSidePanelFull?.visibility = if (isPanelCollapsed) View.GONE else View.VISIBLE
+        }
+
+        tabletBottomRow?.let { row ->
+            val bLp = row.layoutParams as? FrameLayout.LayoutParams
+            if (bLp != null) {
+                val bMargin = if (tabletToolDock == ToolDock.BOTTOM) dp(96f) else dp(24f)
+                if (bLp.bottomMargin != bMargin) {
+                    bLp.bottomMargin = bMargin
+                    row.layoutParams = bLp
+                }
+            }
+        }
+
+        minimapView?.let { mm ->
+            val mLp = mm.layoutParams as? FrameLayout.LayoutParams
+            if (mLp != null) {
+                val onLeft = tabletToolDock != ToolDock.LEFT
+                val gravity = Gravity.BOTTOM or (if (onLeft) Gravity.START else Gravity.END)
+                val bottom = if (tabletToolDock == ToolDock.BOTTOM) dp(96f) else dp(16f)
+                val sideMargin = if (onLeft) dp(16f) else panelW + dp(28f)
+                mLp.gravity = gravity
+                mLp.bottomMargin = bottom
+                mLp.marginStart = if (onLeft) sideMargin else 0
+                mLp.marginEnd = if (onLeft) 0 else sideMargin
+                mm.layoutParams = mLp
+            }
         }
 
         applyTabletFitInsets(m)
@@ -844,12 +1086,255 @@ class EditorActivity : Activity() {
 
         bar.addView(leftGroup, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
 
-        val toolNav = LinearLayout(this).apply {
+        val rightGroup = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END
+        }
+
+        if (m.mode == NoteMode.PAGED) {
+            val btnToggleRail = FrameLayout(this).apply {
+                background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, round = true)
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Rel halaman"
+                setOnClickListener {
+                    isRailHidden = !isRailHidden
+                    getSharedPreferences("tulis_prefs", MODE_PRIVATE).edit().putBoolean("rail_hidden", isRailHidden).apply()
+                    updateTabletLayout()
+                }
+            }
+            val pageIcon = IconView(this).apply {
+                showSelection = false
+                isClickable = false
+                isFocusable = false
+                icon = Icon.PAGE
+                tint = Palette.INK
+                strokeWidthDp = 2f
+                contentDescription = "Rel halaman"
+            }
+            btnToggleRail.addView(pageIcon, FrameLayout.LayoutParams(dp(26f), dp(26f), Gravity.CENTER))
+            rightGroup.addView(btnToggleRail, LinearLayout.LayoutParams(dp(52f), dp(52f)).apply {
+                marginEnd = dp(12f)
+            })
+        }
+
+        val btnPaper = FrameLayout(this).apply {
+            background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, round = true)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Kertas"
+            setOnClickListener {
+                showPaperDialog(this@EditorActivity, m.paperStyle, m.paperSpacing) { s, sp ->
+                    m.paperStyle = s
+                    m.paperSpacing = sp
+                    canvasView.setPaper(s, sp)
+                    isMetaDirty = true
+                    saveMeta()
+                }
+            }
+        }
+        val paperIcon = IconView(this).apply {
+            showSelection = false
+            isClickable = false
+            isFocusable = false
+            icon = Icon.PAPER
+            tint = Palette.INK
+            strokeWidthDp = 2f
+            contentDescription = "Kertas"
+        }
+        btnPaper.addView(paperIcon, FrameLayout.LayoutParams(dp(26f), dp(26f), Gravity.CENTER))
+        rightGroup.addView(btnPaper, LinearLayout.LayoutParams(dp(52f), dp(52f)).apply {
+            marginEnd = dp(12f)
+        })
+
+        val btnSettings = FrameLayout(this).apply {
+            background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, round = true)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Pengaturan tampilan"
+            setOnClickListener {
+                showUiSettingsDialog(this@EditorActivity) {
+                    flushAutosave(immediateThumb = true)
+                    recreate()
+                }
+            }
+        }
+        val settingsIcon = IconView(this).apply {
+            showSelection = false
+            isClickable = false
+            isFocusable = false
+            icon = Icon.SETTINGS
+            tint = Palette.INK
+            strokeWidthDp = 2f
+            contentDescription = "Pengaturan tampilan"
+        }
+        btnSettings.addView(settingsIcon, FrameLayout.LayoutParams(dp(26f), dp(26f), Gravity.CENTER))
+        rightGroup.addView(btnSettings, LinearLayout.LayoutParams(dp(52f), dp(52f)).apply {
+            marginEnd = dp(12f)
+        })
+
+        val undoRedoPill = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, variant = 1)
+            setPadding(dp(4f), 0, dp(4f), 0)
+            minimumHeight = dp(52f)
+        }
+
+        val btnUndoContainer = FrameLayout(this).apply {
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Urungkan"
+            setOnClickListener {
+                canvasView.undo()
+            }
+        }
+        btnUndo = IconView(this).apply {
+            showSelection = false
+            isClickable = false
+            isFocusable = false
+            icon = Icon.UNDO
+            tint = Palette.INK
+            strokeWidthDp = 2f
+            contentDescription = "Urungkan"
+        }
+        btnUndoContainer.addView(btnUndo, FrameLayout.LayoutParams(dp(26f), dp(26f), Gravity.CENTER))
+        undoRedoPill.addView(btnUndoContainer, LinearLayout.LayoutParams(dp(48f), dp(48f)))
+
+        val btnRedoContainer = FrameLayout(this).apply {
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Ulangi"
+            setOnClickListener {
+                canvasView.redo()
+            }
+        }
+        btnRedo = IconView(this).apply {
+            showSelection = false
+            isClickable = false
+            isFocusable = false
+            icon = Icon.REDO
+            tint = Palette.INK
+            strokeWidthDp = 2f
+            contentDescription = "Ulangi"
+        }
+        btnRedoContainer.addView(btnRedo, FrameLayout.LayoutParams(dp(26f), dp(26f), Gravity.CENTER))
+        undoRedoPill.addView(btnRedoContainer, LinearLayout.LayoutParams(dp(48f), dp(48f)).apply {
+            marginStart = dp(2f)
+        })
+
+        rightGroup.addView(undoRedoPill, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        bar.addView(rightGroup, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+        return bar
+    }
+
+    private class ToolDragHandleView(context: Context) : View(context) {
+        private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Palette.INK
+            style = Paint.Style.STROKE
+            strokeWidth = 2.5f * resources.displayMetrics.density
+            strokeCap = Paint.Cap.ROUND
+        }
+        var isVerticalLayout: Boolean = false
+
+        init {
+            isClickable = false
+            isFocusable = false
+            minimumWidth = (44f * resources.displayMetrics.density).toInt()
+            minimumHeight = (44f * resources.displayMetrics.density).toInt()
+            contentDescription = "Pegangan seret bilah alat"
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val w = width.toFloat()
+            val h = height.toFloat()
+            val cx = w / 2f
+            val cy = h / 2f
+            val step = 5f * resources.displayMetrics.density
+            val lineLen = 16f * resources.displayMetrics.density
+            if (isVerticalLayout) {
+                val halfL = lineLen / 2f
+                for (i in -1..1) {
+                    val y = cy + i * step
+                    canvas.drawLine(cx - halfL, y, cx + halfL, y, linePaint)
+                }
+            } else {
+                val halfL = lineLen / 2f
+                for (i in -1..1) {
+                    val x = cx + i * step
+                    canvas.drawLine(x, cy - halfL, x, cy + halfL, linePaint)
+                }
+            }
+        }
+    }
+
+    private fun buildTabletToolPanel(dock: ToolDock): View {
+        val isHoriz = (dock == ToolDock.TOP || dock == ToolDock.BOTTOM)
+        val panel = LinearLayout(this).apply {
+            orientation = if (isHoriz) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
             background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, variant = 11)
-            setPadding(dp(8f), 0, dp(8f), 0)
-            minimumHeight = dp(64f)
+            if (isHoriz) {
+                setPadding(dp(6f), dp(4f), dp(8f), dp(4f))
+                minimumHeight = dp(64f)
+            } else {
+                setPadding(dp(4f), dp(6f), dp(4f), dp(8f))
+                minimumWidth = dp(76f)
+            }
+        }
+
+        val handleContainer = FrameLayout(this).apply {
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Pegangan geser panel alat"
+        }
+        val handleView = ToolDragHandleView(this).apply {
+            isVerticalLayout = !isHoriz
+        }
+        val handleLp = if (isHoriz) {
+            FrameLayout.LayoutParams(dp(32f), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER)
+        } else {
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(32f), Gravity.CENTER)
+        }
+        handleContainer.addView(handleView, handleLp)
+
+        var dX = 0f
+        var dY = 0f
+        var isDragging = false
+
+        handleContainer.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    v.parent?.requestDisallowInterceptTouchEvent(true)
+                    dX = panel.translationX - event.rawX
+                    dY = panel.translationY - event.rawY
+                    isDragging = true
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (isDragging) {
+                        panel.translationX = event.rawX + dX
+                        panel.translationY = event.rawY + dY
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (isDragging) {
+                        isDragging = false
+                        snapTabletToolPanel(panel)
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+
+        if (isHoriz) {
+            panel.addView(handleContainer, LinearLayout.LayoutParams(dp(32f), dp(58f)))
+        } else {
+            panel.addView(handleContainer, LinearLayout.LayoutParams(dp(68f), dp(32f)))
         }
 
         val tools = listOf(
@@ -924,100 +1409,79 @@ class EditorActivity : Activity() {
 
             toolButtons[t] = itemContainer
             toolDots[t] = dot
-            toolNav.addView(itemContainer, LinearLayout.LayoutParams(dp(64f), dp(58f)).apply {
-                marginStart = dp(2f)
-                marginEnd = dp(2f)
-            })
-        }
 
-        bar.addView(toolNav, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-
-        val rightGroup = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL or Gravity.END
-        }
-
-        if (m.mode == NoteMode.PAGED) {
-            val btnToggleRail = FrameLayout(this).apply {
-                background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, round = true)
-                isClickable = true
-                isFocusable = true
-                contentDescription = "Rel halaman"
-                setOnClickListener {
-                    isRailHidden = !isRailHidden
-                    getSharedPreferences("tulis_prefs", MODE_PRIVATE).edit().putBoolean("rail_hidden", isRailHidden).apply()
-                    updateTabletLayout()
-                }
-            }
-            val pageIcon = IconView(this).apply {
-                showSelection = false
-                isClickable = false
-                isFocusable = false
-                icon = Icon.PAGE
-                tint = Palette.INK
-                strokeWidthDp = 2f
-                contentDescription = "Rel halaman"
-            }
-            btnToggleRail.addView(pageIcon, FrameLayout.LayoutParams(dp(26f), dp(26f), Gravity.CENTER))
-            rightGroup.addView(btnToggleRail, LinearLayout.LayoutParams(dp(52f), dp(52f)).apply {
-                marginEnd = dp(12f)
-            })
-        }
-
-        val undoRedoPill = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, variant = 1)
-            setPadding(dp(4f), 0, dp(4f), 0)
-            minimumHeight = dp(52f)
-        }
-
-        val btnUndoContainer = FrameLayout(this).apply {
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Urungkan"
-            setOnClickListener {
-                canvasView.undo()
+            if (isHoriz) {
+                panel.addView(itemContainer, LinearLayout.LayoutParams(dp(64f), dp(58f)).apply {
+                    marginStart = dp(2f)
+                    marginEnd = dp(2f)
+                })
+            } else {
+                panel.addView(itemContainer, LinearLayout.LayoutParams(dp(68f), dp(58f)).apply {
+                    topMargin = dp(2f)
+                    bottomMargin = dp(2f)
+                })
             }
         }
-        btnUndo = IconView(this).apply {
-            showSelection = false
-            isClickable = false
-            isFocusable = false
-            icon = Icon.UNDO
-            tint = Palette.INK
-            strokeWidthDp = 2f
-            contentDescription = "Urungkan"
-        }
-        btnUndoContainer.addView(btnUndo, FrameLayout.LayoutParams(dp(26f), dp(26f), Gravity.CENTER))
-        undoRedoPill.addView(btnUndoContainer, LinearLayout.LayoutParams(dp(48f), dp(48f)))
 
-        val btnRedoContainer = FrameLayout(this).apply {
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Ulangi"
-            setOnClickListener {
-                canvasView.redo()
-            }
-        }
-        btnRedo = IconView(this).apply {
-            showSelection = false
-            isClickable = false
-            isFocusable = false
-            icon = Icon.REDO
-            tint = Palette.INK
-            strokeWidthDp = 2f
-            contentDescription = "Ulangi"
-        }
-        btnRedoContainer.addView(btnRedo, FrameLayout.LayoutParams(dp(26f), dp(26f), Gravity.CENTER))
-        undoRedoPill.addView(btnRedoContainer, LinearLayout.LayoutParams(dp(48f), dp(48f)).apply {
-            marginStart = dp(2f)
-        })
+        applyToolSelection(activeTool)
+        syncToolDots()
 
-        rightGroup.addView(undoRedoPill, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        bar.addView(rightGroup, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        return panel
+    }
 
-        return bar
+    private fun snapTabletToolPanel(panel: View) {
+        val rootW = rootLayout.width.toFloat()
+        val rootH = rootLayout.height.toFloat()
+        if (rootW <= 0f || rootH <= 0f) {
+            panel.translationX = 0f
+            panel.translationY = 0f
+            return
+        }
+
+        val location = IntArray(2)
+        panel.getLocationInWindow(location)
+        val rootLocation = IntArray(2)
+        rootLayout.getLocationInWindow(rootLocation)
+
+        val curLeft = (location[0] - rootLocation[0]).toFloat()
+        val curTop = (location[1] - rootLocation[1]).toFloat()
+        val centerX = curLeft + panel.width / 2f
+        val centerY = curTop + panel.height / 2f
+
+        val distTop = centerY
+        val distBottom = rootH - centerY
+        val distLeft = centerX
+        val distRight = rootW - centerX
+
+        val minDist = minOf(distTop, distBottom, distLeft, distRight)
+        val targetDock = when (minDist) {
+            distTop -> ToolDock.TOP
+            distBottom -> ToolDock.BOTTOM
+            distLeft -> ToolDock.LEFT
+            else -> ToolDock.RIGHT
+        }
+
+        if (tabletToolDock != targetDock) {
+            tabletToolDock = targetDock
+            getSharedPreferences("tulis_prefs", MODE_PRIVATE)
+                .edit()
+                .putString("tool_dock", targetDock.name)
+                .apply()
+
+            rootLayout.removeView(panel)
+            val newPanel = buildTabletToolPanel(targetDock)
+            newPanel.alpha = 0f
+            tabletToolPanel = newPanel
+            rootLayout.addView(newPanel, makeTabletToolPanelLayoutParams(targetDock))
+            newPanel.animate().alpha(1f).setDuration(160L).start()
+            updateTabletLayout()
+        } else {
+            panel.animate()
+                .translationX(0f)
+                .translationY(0f)
+                .setDuration(180L)
+                .start()
+        }
     }
 
     private fun buildTabletPageRail(m: NotebookMeta): View {
@@ -1910,24 +2374,43 @@ class EditorActivity : Activity() {
     }
 
     private fun updateZoomIndicator() {
-        chipZoom?.let {
-            val pct = (canvasView.viewport.scale * 100f).toInt()
-            if (pct != lastZoomPct) {
-                lastZoomPct = pct
+        val pct = (canvasView.viewport.scale * 100f).toInt()
+        if (pct != lastZoomPct) {
+            lastZoomPct = pct
+            chipZoom?.let {
                 it.text = "$pct%"
                 it.contentDescription = "Zoom $pct persen, ketuk untuk mengatur ulang"
+            }
+        }
+        if (pct != pillZoomPct) {
+            tabletZoomPill?.let {
+                pillZoomPct = pct
+                it.text = "$pct%"
+                it.contentDescription = if (meta?.mode == NoteMode.INFINITE) {
+                    "Zoom $pct persen, ketuk untuk mengatur ulang"
+                } else {
+                    "Zoom $pct persen, ketuk untuk beralih mode pas"
+                }
             }
         }
     }
 
     private fun updateUndoRedoState() {
-        val page = canvasView.getPage()
-        val canU = page?.canUndo() == true
-        val canR = page?.canRedo() == true
+        val canU: Boolean
+        val canR: Boolean
+        if (meta?.mode == NoteMode.PAGED) {
+            canU = canvasView.canUndo()
+            canR = canvasView.canRedo()
+        } else {
+            val page = canvasView.getPage()
+            canU = page?.canUndo() == true
+            canR = page?.canRedo() == true
+        }
         btnUndo.alpha = if (canU) 1.0f else 0.35f
         btnUndo.parent?.let { (it as View).isEnabled = canU }
         btnRedo.alpha = if (canR) 1.0f else 0.35f
         btnRedo.parent?.let { (it as View).isEnabled = canR }
+        minimapView?.refresh()
     }
 
     private fun buildBottomToolbar(): LinearLayout {
@@ -2725,6 +3208,10 @@ class EditorActivity : Activity() {
 
     private fun switchPage(targetIndex: Int) {
         if (targetIndex == currentPageIndex) return
+        if (meta?.mode == NoteMode.PAGED) {
+            canvasView.scrollToPage(targetIndex)
+            return
+        }
         flushAutosave(immediateThumb = false)
         canvasView.setPage(null)
         currentPageIndex = targetIndex
@@ -2742,6 +3229,24 @@ class EditorActivity : Activity() {
 
     private fun addNewPage() {
         val m = meta ?: return
+        if (m.mode == NoteMode.PAGED) {
+            val s = pageStack ?: return
+            flushAutosave(immediateThumb = false)
+            val newIndex = m.pageCount
+            m.pageCount += 1
+            m.lastPage = newIndex
+            saveMeta()
+            val newPage = PageContent()
+            repo.insertPage(notebookId, newIndex, m.pageCount, newPage)
+            s.insertAt(newIndex, newPage)
+            canvasView.scrollToPage(newIndex)
+            updatePageIndicator()
+            rootLayout.announceForAccessibility("Halaman ${currentPageIndex + 1} dari ${m.pageCount}")
+            if (isTablet) {
+                refreshTabletPageRail()
+            }
+            return
+        }
         flushAutosave(immediateThumb = false)
         val newIndex = m.pageCount
         m.pageCount += 1
@@ -2840,6 +3345,50 @@ class EditorActivity : Activity() {
     private fun executeDeleteCurrentPage() {
         val m = meta ?: return
         if (m.pageCount <= 1) return
+        if (m.mode == NoteMode.PAGED) {
+            val s = pageStack ?: return
+            flushAutosave(immediateThumb = false)
+            val deleteIdx = currentPageIndex
+            val deletedSnapshot = s.get(deleteIdx)?.snapshot() ?: PageContent()
+            val prevPageCount = m.pageCount
+            repo.deletePage(notebookId, deleteIdx, prevPageCount)
+            m.pageCount -= 1
+            s.removeAt(deleteIdx)
+            val nextIdx = if (deleteIdx >= m.pageCount) m.pageCount - 1 else deleteIdx
+            currentPageIndex = nextIdx
+            m.lastPage = nextIdx
+            saveMeta()
+            canvasView.scrollToPage(nextIdx)
+            updatePageIndicator()
+            rootLayout.announceForAccessibility("Halaman ${currentPageIndex + 1} dari ${m.pageCount}")
+            repo.afterPending {
+                thumbMemoryCache.evictAll()
+                if (isTablet) {
+                    refreshTabletPageRail()
+                }
+            }
+            UndoBar.show(rootLayout, "Halaman dihapus", onUndo = {
+                val curMeta = meta ?: return@show
+                val curStack = pageStack ?: return@show
+                val restoredCount = curMeta.pageCount + 1
+                repo.insertPage(notebookId, deleteIdx, restoredCount, deletedSnapshot)
+                curStack.insertAt(deleteIdx, deletedSnapshot)
+                curMeta.pageCount = restoredCount
+                curMeta.lastPage = deleteIdx
+                saveMeta()
+                currentPageIndex = deleteIdx
+                canvasView.scrollToPage(deleteIdx)
+                updatePageIndicator()
+                rootLayout.announceForAccessibility("Halaman ${currentPageIndex + 1} dari ${curMeta.pageCount}")
+                repo.afterPending {
+                    thumbMemoryCache.evictAll()
+                    if (isTablet) {
+                        refreshTabletPageRail()
+                    }
+                }
+            })
+            return
+        }
         val deleteIdx = currentPageIndex
         val deletedSnapshot = canvasView.getPage()?.snapshot() ?: PageContent()
         val prevPageCount = m.pageCount
@@ -2885,6 +3434,7 @@ class EditorActivity : Activity() {
                 canvasView.fitPage()
             }
             updateUndoRedoState()
+            minimapView?.refresh()
         }
     }
 
@@ -3007,6 +3557,27 @@ class EditorActivity : Activity() {
         isAutosavePending = false
 
         val m = meta ?: return
+        if (m.mode == NoteMode.PAGED) {
+            val s = pageStack ?: return
+            val dirty = s.dirtyPages()
+            if (dirty.isNotEmpty()) {
+                for ((idx, p) in dirty) {
+                    repo.savePageAsync(notebookId, idx, p.snapshot())
+                    val bmp = canvasView.renderPageThumbnail(p, 192)
+                    if (idx == 0) {
+                        repo.saveThumbAsync(notebookId, bmp)
+                    }
+                    repo.savePageThumbAsync(notebookId, idx, bmp)
+                    thumbMemoryCache.put("${notebookId}_$idx", bmp)
+                    s.markSaved(p)
+                }
+                if (isTablet) {
+                    refreshTabletPageRail()
+                }
+            }
+            saveMeta()
+            return
+        }
         val page = canvasView.getPage()
         val currentRev = page?.revision
         if (page != null && currentRev != null && currentRev != lastSavedRevision) {

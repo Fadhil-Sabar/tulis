@@ -40,6 +40,7 @@ import com.example.tulis.ui.Icon
 import com.example.tulis.ui.IconView
 import com.example.tulis.ui.Palette
 import com.example.tulis.ui.SketchDrawable
+import com.example.tulis.ui.UiPrefs
 import com.example.tulis.ui.UndoBar
 import java.io.File
 import java.text.SimpleDateFormat
@@ -48,6 +49,10 @@ import java.util.Locale
 import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(UiPrefs.wrap(newBase))
+    }
 
     private enum class FilterTab { ALL, INFINITE, PAGED }
     private enum class SortOrder { LATEST, TITLE_AZ }
@@ -226,6 +231,45 @@ class MainActivity : Activity() {
         }
         sortBtn = sortPill
         headerLayout.addView(sortPill)
+
+        val settingsBtn = FrameLayout(this).apply {
+            val s48 = dp(48f)
+            layoutParams = LinearLayout.LayoutParams(s48, s48).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                rightMargin = dp(10f)
+            }
+            background = SketchDrawable(
+                seed = 775L,
+                fill = Palette.CARD,
+                stroke = Palette.INK,
+                strokeWidthDp = 2.5f,
+                shadowOffsetDp = 2.5f,
+                cornerDp = 24f,
+                round = true
+            )
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Pengaturan tampilan"
+
+            val settingsIcon = IconView(context).apply {
+                icon = Icon.SETTINGS
+                tint = Palette.INK
+                strokeWidthDp = 2f
+                isClickable = false
+                isFocusable = false
+                layoutParams = FrameLayout.LayoutParams(dp(24f), dp(24f)).apply {
+                    gravity = Gravity.CENTER
+                }
+            }
+            addView(settingsIcon)
+
+            setOnClickListener {
+                com.example.tulis.ui.showUiSettingsDialog(this@MainActivity) {
+                    recreate()
+                }
+            }
+        }
+        headerLayout.addView(settingsBtn)
 
         val trashBtn = FrameLayout(this).apply {
             val s48 = dp(48f)
@@ -425,7 +469,7 @@ class MainActivity : Activity() {
             )
         }
 
-        val screenWidthDp = resources.configuration.screenWidthDp
+        val screenWidthDp = (resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt()
         val numCols = when {
             screenWidthDp >= 900 -> 4
             screenWidthDp >= 600 -> 3
@@ -1388,6 +1432,7 @@ class MainActivity : Activity() {
     }
 
     private fun loadThumbnailAsync(id: String, imageView: ImageView) {
+        imageView.tag = id
         val cached = thumbMemoryCache.get(id)
         if (cached != null) {
             imageView.setImageBitmap(cached)
@@ -1395,7 +1440,6 @@ class MainActivity : Activity() {
         }
 
         imageView.setImageBitmap(null)
-        imageView.tag = id
 
         thumbExecutor.execute {
             val file: File = repo.thumbFile(id)
@@ -1715,7 +1759,7 @@ class MainActivity : Activity() {
         private val fillColor: Int,
         private val strokeColor: Int
     ) : Drawable() {
-        private val density = Resources.getSystem().displayMetrics.density
+        private val density = UiPrefs.systemDensity()
         private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             color = strokeColor
@@ -1792,7 +1836,7 @@ class MainActivity : Activity() {
         private val sketchShadowColor: Int = 0,
         private val sketchVariant: Int = -1
     ) : Drawable() {
-        private val density = Resources.getSystem().displayMetrics.density
+        private val density = UiPrefs.systemDensity()
         private val dotSpacing = spacingDp * density
         private val dotRadius = 1.1f * density
         private val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

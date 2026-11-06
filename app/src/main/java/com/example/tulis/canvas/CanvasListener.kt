@@ -7,4 +7,6 @@ interface CanvasListener {
     fun onRequestTextEdit(item: TextItem?, wx: Float, wy: Float)
     fun onHistoryChanged()
     fun onViewportChanged()
+    fun onVisiblePageChanged(index: Int) {}
+    fun onPageWindowChanged(first: Int, last: Int) {}
 }

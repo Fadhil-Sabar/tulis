@@ -16,6 +16,8 @@ import com.example.tulis.ink.InkBridge
 import com.example.tulis.ink.InkRenderer
 import com.example.tulis.model.NoteMode
 import com.example.tulis.model.PageContent
+import com.example.tulis.model.PageStack
+import com.example.tulis.model.PaperStyle
 import com.example.tulis.model.TextItem
 import com.example.tulis.model.Viewport
 import com.example.tulis.ui.Palette
@@ -30,6 +32,24 @@ class CanvasLayer(context: Context) : View(context) {
             contentDirty = true
             invalidate()
         }
+
+    var stack: PageStack? = null
+        set(value) {
+            field = value
+            invalidate()
+        }
+
+    var paperStyle: PaperStyle = PaperStyle.DOTS
+        private set
+
+    var paperSpacing: Float = 28f
+        private set
+
+    fun setPaper(style: PaperStyle, spacing: Float) {
+        paperStyle = style
+        paperSpacing = spacing.coerceIn(12f, 120f)
+        invalidate()
+    }
 
     var page: PageContent? = null
         set(value) {
@@ -78,6 +98,8 @@ class CanvasLayer(context: Context) : View(context) {
         isAntiAlias = true
     }
 
+    private val pageRenderCache: PageRenderCache = PageRenderCache(context)
+
     private val dotRadiusPx = 1.4f * density
     private val dotPaint = Paint().apply {
         style = Paint.Style.STROKE
@@ -87,23 +109,34 @@ class CanvasLayer(context: Context) : View(context) {
         isAntiAlias = true
     }
 
+    private val linePaint = Paint().apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 1f * density
+        color = 0x262B2724
+        isAntiAlias = true
+    }
+
     private val textPaint = TextPaint().apply {
         isAntiAlias = true
     }
 
     private val tmpMatrix = Matrix()
     private val tmpItemMatrix = Matrix()
+    private val pageMatrix = Matrix()
     private val visibleWorldRect = RectF()
     private val strokeBoundsRect = RectF()
     private val pageWorldRect = RectF(0f, 0f, 1000f, 1414f)
+    private val pagedItemWorldRect = RectF()
     private val pageScreenRect = RectF()
     private val pageShadowRect = RectF()
     private val textBoundsRect = RectF()
+    private val localTextBoundsRect = RectF()
 
     private val shadowOffsetXDp = 4f * density
     private val shadowOffsetYDp = 6f * density
 
     private var dotPoints = FloatArray(512)
+    private var linePoints = FloatArray(512)
 
     private val contentNode: RenderNode? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         RenderNode("CanvasLayerContent").apply {
@@ -167,6 +200,23 @@ class CanvasLayer(context: Context) : View(context) {
         }
     }
 
+    fun pageToScreen(i: Int, out: Matrix) {
+        val s = stack
+        val oy = s?.offsetY(i) ?: (i * (pageH + PageStack.GAP))
+        out.set(viewport.worldToScreen)
+        out.preTranslate(0f, oy)
+    }
+
+    fun hitPage(wx: Float, wy: Float, outLocal: FloatArray): Int {
+        if (wx < 0f || wx > pageW) return -1
+        val s = stack ?: return -1
+        val idx = s.pageAt(wy)
+        if (idx < 0) return -1
+        outLocal[0] = wx
+        outLocal[1] = wy - s.offsetY(idx)
+        return idx
+    }
+
     fun onStrokeAppended() {
         val p = page ?: return
         if (recPage === p && recRevision == p.revision - 1) {
@@ -177,7 +227,22 @@ class CanvasLayer(context: Context) : View(context) {
         invalidate()
     }
 
+    fun onStrokeAppended(page: PageContent) {
+        pageRenderCache.onStrokeAppended(page)
+        invalidate()
+    }
+
     fun invalidateContent() {
+        contentDirty = true
+        invalidate()
+    }
+
+    fun invalidateContent(page: PageContent?) {
+        if (page != null) {
+            pageRenderCache.invalidate(page)
+        } else {
+            pageRenderCache.discardAll()
+        }
         contentDirty = true
         invalidate()
     }
@@ -186,6 +251,7 @@ class CanvasLayer(context: Context) : View(context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             contentNode?.discardDisplayList()
         }
+        pageRenderCache.discardAll()
         recPage = null
         recRevision = -1
         recCount = 0
@@ -228,7 +294,11 @@ class CanvasLayer(context: Context) : View(context) {
             viewport.visibleWorld(w, h, visibleWorldRect)
 
             if (mode == NoteMode.PAGED) {
-                drawPaged(canvas, w, h)
+                if (stack != null) {
+                    drawPagedStack(canvas, w, h)
+                } else {
+                    drawPaged(canvas, w, h)
+                }
             } else {
                 drawInfinite(canvas, w, h)
             }
@@ -241,9 +311,65 @@ class CanvasLayer(context: Context) : View(context) {
         bgPaint.color = Palette.CANVAS
         canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), bgPaint)
 
-        drawAdaptiveDots(canvas)
+        drawInfinitePattern(canvas)
 
         drawContent(canvas)
+    }
+
+    private fun drawPagedStack(canvas: Canvas, w: Int, h: Int) {
+        val s = stack ?: return
+        bgPaint.color = Palette.DESK
+        canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), bgPaint)
+
+        val vRange = s.visibleRange(visibleWorldRect.top, visibleWorldRect.bottom)
+        if (vRange.isEmpty()) return
+
+        for (i in vRange) {
+            val offsetY = s.offsetY(i)
+            pagedItemWorldRect.set(0f, offsetY, pageW, offsetY + pageH)
+            viewport.worldToScreen.mapRect(pageScreenRect, pagedItemWorldRect)
+
+            pageShadowRect.set(
+                pageScreenRect.left + shadowOffsetXDp,
+                pageScreenRect.top + shadowOffsetYDp,
+                pageScreenRect.right + shadowOffsetXDp,
+                pageScreenRect.bottom + shadowOffsetYDp
+            )
+            canvas.drawRect(pageShadowRect, pageShadowPaint)
+
+            canvas.drawRect(pageScreenRect, pageFillPaint)
+            canvas.drawRect(pageScreenRect, pageBorderPaint)
+
+            val saveCount = canvas.save()
+            canvas.clipRect(pageScreenRect)
+
+            drawPagedPatternAt(canvas, offsetY)
+
+            val p = s.get(i)
+            if (p != null) {
+                pageToScreen(i, pageMatrix)
+                pageRenderCache.draw(canvas, p, pageMatrix, viewport.scale, gestureActive)
+
+                val texts = p.texts
+                val textCount = texts.size
+                for (tIdx in 0 until textCount) {
+                    val textItem = texts[tIdx]
+                    textItem.worldBounds(localTextBoundsRect)
+                    textBoundsRect.set(
+                        localTextBoundsRect.left,
+                        localTextBoundsRect.top + offsetY,
+                        localTextBoundsRect.right,
+                        localTextBoundsRect.bottom + offsetY
+                    )
+                    if (!RectF.intersects(textBoundsRect, visibleWorldRect)) {
+                        continue
+                    }
+                    drawTextItemWithMatrix(canvas, textItem, pageMatrix)
+                }
+            }
+
+            canvas.restoreToCount(saveCount)
+        }
     }
 
     private fun drawPaged(canvas: Canvas, w: Int, h: Int) {
@@ -266,13 +392,37 @@ class CanvasLayer(context: Context) : View(context) {
         val saveCount = canvas.save()
         canvas.clipRect(pageScreenRect)
 
+        drawPagedPattern(canvas)
+
         drawContent(canvas)
 
         canvas.restoreToCount(saveCount)
     }
 
-    private fun drawAdaptiveDots(canvas: Canvas) {
-        val baseSpacing = 28f
+    private fun drawInfinitePattern(canvas: Canvas) {
+        when (paperStyle) {
+            PaperStyle.PLAIN -> return
+            PaperStyle.DOTS -> drawInfiniteDots(canvas)
+            PaperStyle.GRID -> drawInfiniteLines(canvas, drawVertical = true)
+            PaperStyle.LINES -> drawInfiniteLines(canvas, drawVertical = false)
+        }
+    }
+
+    private fun drawPagedPattern(canvas: Canvas) {
+        drawPagedPatternAt(canvas, 0f)
+    }
+
+    private fun drawPagedPatternAt(canvas: Canvas, pageOffsetY: Float) {
+        when (paperStyle) {
+            PaperStyle.PLAIN -> return
+            PaperStyle.DOTS -> drawPagedDots(canvas, pageOffsetY)
+            PaperStyle.GRID -> drawPagedLines(canvas, drawVertical = true, pageOffsetY = pageOffsetY)
+            PaperStyle.LINES -> drawPagedLines(canvas, drawVertical = false, pageOffsetY = pageOffsetY)
+        }
+    }
+
+    private fun drawInfiniteDots(canvas: Canvas) {
+        val baseSpacing = paperSpacing
         var step = baseSpacing
         while (step * viewport.scale < 12f) {
             step *= 2f
@@ -281,14 +431,22 @@ class CanvasLayer(context: Context) : View(context) {
         val ox = 10f
         val oy = 14f
 
+        var cols = ceil((visibleWorldRect.right - (floor((visibleWorldRect.left - ox) / step) * step + ox)) / step).toInt() + 1
+        var rows = ceil((visibleWorldRect.bottom - (floor((visibleWorldRect.top - oy) / step) * step + oy)) / step).toInt() + 1
+        while (cols > 400 || rows > 400) {
+            step *= 2f
+            cols = ceil((visibleWorldRect.right - (floor((visibleWorldRect.left - ox) / step) * step + ox)) / step).toInt() + 1
+            rows = ceil((visibleWorldRect.bottom - (floor((visibleWorldRect.top - oy) / step) * step + oy)) / step).toInt() + 1
+        }
+
         val startX = floor((visibleWorldRect.left - ox) / step) * step + ox
         val endX = visibleWorldRect.right
         val startY = floor((visibleWorldRect.top - oy) / step) * step + oy
         val endY = visibleWorldRect.bottom
 
-        val cols = max(0, ceil((endX - startX) / step).toInt() + 1)
-        val rows = max(0, ceil((endY - startY) / step).toInt() + 1)
-        val neededFloats = cols * rows * 2
+        val totalCols = max(0, ceil((endX - startX) / step).toInt() + 1)
+        val totalRows = max(0, ceil((endY - startY) / step).toInt() + 1)
+        val neededFloats = totalCols * totalRows * 2
 
         if (dotPoints.size < neededFloats) {
             var newCap = dotPoints.size
@@ -314,6 +472,216 @@ class CanvasLayer(context: Context) : View(context) {
 
         if (idx > 0) {
             canvas.drawPoints(dotPoints, 0, idx, dotPaint)
+        }
+    }
+
+    private fun drawInfiniteLines(canvas: Canvas, drawVertical: Boolean) {
+        val baseSpacing = paperSpacing
+        var step = baseSpacing
+        while (step * viewport.scale < 12f) {
+            step *= 2f
+        }
+
+        val ox = 10f
+        val oy = 14f
+
+        var startX = floor((visibleWorldRect.left - ox) / step) * step + ox
+        var startY = floor((visibleWorldRect.top - oy) / step) * step + oy
+        var cols = if (drawVertical) ceil((visibleWorldRect.right - startX) / step).toInt() + 1 else 0
+        var rows = ceil((visibleWorldRect.bottom - startY) / step).toInt() + 1
+        while (cols > 400 || rows > 400) {
+            step *= 2f
+            startX = floor((visibleWorldRect.left - ox) / step) * step + ox
+            startY = floor((visibleWorldRect.top - oy) / step) * step + oy
+            cols = if (drawVertical) ceil((visibleWorldRect.right - startX) / step).toInt() + 1 else 0
+            rows = ceil((visibleWorldRect.bottom - startY) / step).toInt() + 1
+        }
+
+        val endX = visibleWorldRect.right
+        val endY = visibleWorldRect.bottom
+
+        val totalCols = if (drawVertical) max(0, ceil((endX - startX) / step).toInt() + 1) else 0
+        val totalRows = max(0, ceil((endY - startY) / step).toInt() + 1)
+        val neededFloats = (totalCols + totalRows) * 4
+
+        if (linePoints.size < neededFloats) {
+            var newCap = linePoints.size
+            while (newCap < neededFloats) {
+                newCap *= 2
+            }
+            linePoints = FloatArray(newCap)
+        }
+
+        val screenLeft = 0f
+        val screenRight = width.toFloat()
+        val screenTop = 0f
+        val screenBottom = height.toFloat()
+
+        var idx = 0
+        var wy = startY
+        while (wy <= endY) {
+            val sy = wy * viewport.scale + viewport.ty
+            linePoints[idx++] = screenLeft
+            linePoints[idx++] = sy
+            linePoints[idx++] = screenRight
+            linePoints[idx++] = sy
+            wy += step
+        }
+
+        if (drawVertical) {
+            var wx = startX
+            while (wx <= endX) {
+                val sx = wx * viewport.scale + viewport.tx
+                linePoints[idx++] = sx
+                linePoints[idx++] = screenTop
+                linePoints[idx++] = sx
+                linePoints[idx++] = screenBottom
+                wx += step
+            }
+        }
+
+        if (idx > 0) {
+            canvas.drawLines(linePoints, 0, idx, linePaint)
+        }
+    }
+
+    private fun drawPagedDots(canvas: Canvas, pageOffsetY: Float = 0f) {
+        val baseSpacing = paperSpacing
+        var step = baseSpacing
+        while (step * viewport.scale < 12f) {
+            step *= 2f
+        }
+
+        val ox = baseSpacing
+        val oy = baseSpacing
+
+        val visibleLeft = max(0f, visibleWorldRect.left)
+        val visibleTop = max(0f, visibleWorldRect.top - pageOffsetY)
+        val visibleRight = minOf(pageW, visibleWorldRect.right)
+        val visibleBottom = minOf(pageH, visibleWorldRect.bottom - pageOffsetY)
+
+        if (visibleLeft > visibleRight || visibleTop > visibleBottom) return
+
+        var startX = if (visibleLeft <= ox) ox else ceil((visibleLeft - ox) / step) * step + ox
+        var startY = if (visibleTop <= oy) oy else ceil((visibleTop - oy) / step) * step + oy
+        val endX = visibleRight
+        val endY = visibleBottom
+
+        var cols = if (endX >= startX) ceil((endX - startX) / step).toInt() + 1 else 0
+        var rows = if (endY >= startY) ceil((endY - startY) / step).toInt() + 1 else 0
+        while (cols > 400 || rows > 400) {
+            step *= 2f
+            startX = if (visibleLeft <= ox) ox else ceil((visibleLeft - ox) / step) * step + ox
+            startY = if (visibleTop <= oy) oy else ceil((visibleTop - oy) / step) * step + oy
+            cols = if (endX >= startX) ceil((endX - startX) / step).toInt() + 1 else 0
+            rows = if (endY >= startY) ceil((endY - startY) / step).toInt() + 1 else 0
+        }
+
+        val totalCols = max(0, cols)
+        val totalRows = max(0, rows)
+        val neededFloats = totalCols * totalRows * 2
+
+        if (dotPoints.size < neededFloats) {
+            var newCap = dotPoints.size
+            while (newCap < neededFloats) {
+                newCap *= 2
+            }
+            dotPoints = FloatArray(newCap)
+        }
+
+        var idx = 0
+        var wy = startY
+        while (wy <= endY) {
+            val sy = (wy + pageOffsetY) * viewport.scale + viewport.ty
+            var wx = startX
+            while (wx <= endX) {
+                val sx = wx * viewport.scale + viewport.tx
+                dotPoints[idx++] = sx
+                dotPoints[idx++] = sy
+                wx += step
+            }
+            wy += step
+        }
+
+        if (idx > 0) {
+            canvas.drawPoints(dotPoints, 0, idx, dotPaint)
+        }
+    }
+
+    private fun drawPagedLines(canvas: Canvas, drawVertical: Boolean, pageOffsetY: Float = 0f) {
+        val baseSpacing = paperSpacing
+        var step = baseSpacing
+        while (step * viewport.scale < 12f) {
+            step *= 2f
+        }
+
+        val ox = baseSpacing
+        val oy = baseSpacing
+
+        val visibleLeft = max(0f, visibleWorldRect.left)
+        val visibleTop = max(0f, visibleWorldRect.top - pageOffsetY)
+        val visibleRight = minOf(pageW, visibleWorldRect.right)
+        val visibleBottom = minOf(pageH, visibleWorldRect.bottom - pageOffsetY)
+
+        if (visibleLeft > visibleRight || visibleTop > visibleBottom) return
+
+        var startX = if (visibleLeft <= ox) ox else ceil((visibleLeft - ox) / step) * step + ox
+        var startY = if (visibleTop <= oy) oy else ceil((visibleTop - oy) / step) * step + oy
+        val endX = visibleRight
+        val endY = visibleBottom
+
+        var cols = if (drawVertical && endX >= startX) ceil((endX - startX) / step).toInt() + 1 else 0
+        var rows = if (endY >= startY) ceil((endY - startY) / step).toInt() + 1 else 0
+        while (cols > 400 || rows > 400) {
+            step *= 2f
+            startX = if (visibleLeft <= ox) ox else ceil((visibleLeft - ox) / step) * step + ox
+            startY = if (visibleTop <= oy) oy else ceil((visibleTop - oy) / step) * step + oy
+            cols = if (drawVertical && endX >= startX) ceil((endX - startX) / step).toInt() + 1 else 0
+            rows = if (endY >= startY) ceil((endY - startY) / step).toInt() + 1 else 0
+        }
+
+        val totalCols = if (drawVertical) max(0, cols) else 0
+        val totalRows = max(0, rows)
+        val neededFloats = (totalCols + totalRows) * 4
+
+        if (linePoints.size < neededFloats) {
+            var newCap = linePoints.size
+            while (newCap < neededFloats) {
+                newCap *= 2
+            }
+            linePoints = FloatArray(newCap)
+        }
+
+        val pageScreenLeft = pageScreenRect.left
+        val pageScreenRight = pageScreenRect.right
+        val pageScreenTop = pageScreenRect.top
+        val pageScreenBottom = pageScreenRect.bottom
+
+        var idx = 0
+        var wy = startY
+        while (wy <= endY) {
+            val sy = (wy + pageOffsetY) * viewport.scale + viewport.ty
+            linePoints[idx++] = pageScreenLeft
+            linePoints[idx++] = sy
+            linePoints[idx++] = pageScreenRight
+            linePoints[idx++] = sy
+            wy += step
+        }
+
+        if (drawVertical) {
+            var wx = startX
+            while (wx <= endX) {
+                val sx = wx * viewport.scale + viewport.tx
+                linePoints[idx++] = sx
+                linePoints[idx++] = pageScreenTop
+                linePoints[idx++] = sx
+                linePoints[idx++] = pageScreenBottom
+                wx += step
+            }
+        }
+
+        if (idx > 0) {
+            canvas.drawLines(linePoints, 0, idx, linePaint)
         }
     }
 
@@ -473,6 +841,22 @@ class CanvasLayer(context: Context) : View(context) {
             item.y * viewport.scale + viewport.ty
         )
         canvas.scale(viewport.scale, viewport.scale)
+
+        textPaint.color = item.colorArgb
+        textPaint.textSize = item.sizeWorld
+
+        staticLayout.draw(canvas)
+
+        canvas.restoreToCount(saveCount)
+    }
+
+    private fun drawTextItemWithMatrix(canvas: Canvas, item: TextItem, pageToScreen: Matrix) {
+        val staticLayout = getOrCreateStaticLayout(item)
+
+        val saveCount = canvas.save()
+
+        canvas.concat(pageToScreen)
+        canvas.translate(item.x, item.y)
 
         textPaint.color = item.colorArgb
         textPaint.textSize = item.sizeWorld

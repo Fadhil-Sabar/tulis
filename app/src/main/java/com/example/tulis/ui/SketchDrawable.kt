@@ -23,7 +23,7 @@ class SketchDrawable(
     var variant: Int = -1
 ) : Drawable() {
 
-    private val density: Float = Resources.getSystem().displayMetrics.density
+    private val density: Float = UiPrefs.systemDensity()
     private var currentSeed: Long = seed
     private var rng = Random(seed)
 
