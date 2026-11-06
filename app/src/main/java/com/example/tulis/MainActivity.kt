@@ -40,6 +40,7 @@ import com.example.tulis.model.NoteMode
 import com.example.tulis.model.NotebookMeta
 import com.example.tulis.model.PageOrientation
 import com.example.tulis.storage.NotebookRepository
+import com.example.tulis.storage.VaultSync
 import com.example.tulis.ui.Fonts
 import com.example.tulis.ui.Icon
 import com.example.tulis.ui.IconView
@@ -97,6 +98,8 @@ class MainActivity : Activity() {
     private lateinit var searchContainer: LinearLayout
     private lateinit var sortBtn: TextView
     private lateinit var trashBadgeView: TextView
+    private lateinit var vaultChip: TextView
+    private var vaultObserverRelease: (() -> Unit)? = null
     private lateinit var rootLayout: FrameLayout
     private lateinit var locationRow: LinearLayout
     private lateinit var breadcrumbRow: LinearLayout
@@ -120,7 +123,62 @@ class MainActivity : Activity() {
         super.onResume()
         updateTrashBadge()
         refreshNotebooks()
+        refreshVaultChip()
+        vaultObserverRelease?.invoke()
+        vaultObserverRelease = VaultSync.get(this).addStatusObserver { refreshVaultChip() }
         com.example.tulis.storage.VaultSync.get(this).requestSync(null)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        vaultObserverRelease?.invoke()
+        vaultObserverRelease = null
+    }
+
+    private fun refreshVaultChip() {
+        if (!::vaultChip.isInitialized) return
+        val st = VaultSync.get(this).status()
+        if (st.phase == VaultSync.Phase.NOT_CONFIGURED) {
+            vaultChip.visibility = View.GONE
+            return
+        }
+        vaultChip.visibility = View.VISIBLE
+        val narrow = resources.configuration.smallestScreenWidthDp < 600
+        val attention = st.attention.size
+        if (attention > 0) {
+            vaultChip.setTextColor(Palette.RED)
+            vaultChip.text = if (narrow) "☁ !" else "☁ ! $attention perlu perhatian"
+            return
+        }
+        vaultChip.setTextColor(Palette.INK)
+        vaultChip.text = when {
+            narrow -> "☁"
+            st.phase == VaultSync.Phase.RUNNING -> "☁ Menyinkron…"
+            st.phase == VaultSync.Phase.NEED_REPICK -> "☁ Pilih ulang vault"
+            else -> {
+                val time = if (st.lastSuccessAt > 0) {
+                    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(st.lastSuccessAt))
+                } else {
+                    "belum"
+                }
+                "☁ ${st.vaultName ?: "vault"} · $time"
+            }
+        }
+    }
+
+    private fun showHomeMenu() {
+        val trashCount = repo.trashCount()
+        showActionsDialog("Menu", null, listOf(
+            DialogAction("Tampilan", Palette.YELLOW, Palette.INK) {
+                com.example.tulis.ui.showUiSettingsDialog(this) { recreate() }
+            },
+            DialogAction(if (trashCount > 0) "Sampah ($trashCount)" else "Sampah", Palette.YELLOW, Palette.INK) {
+                startActivity(Intent(this, TrashActivity::class.java))
+            },
+            DialogAction("Cadangan vault", Palette.YELLOW, Palette.INK) {
+                com.example.tulis.ui.showVaultDialog(this, { pickVault() }, { refreshNotebooks() })
+            }
+        ))
     }
 
     private fun pickVault() {
@@ -230,6 +288,38 @@ class MainActivity : Activity() {
         titleContainer.addView(wavyLine)
         headerLayout.addView(titleContainer)
 
+        vaultChip = TextView(this).apply {
+            minimumHeight = dp(36f)
+            textSize = 14f
+            typeface = Fonts.ui(context)
+            setTextColor(Palette.INK)
+            gravity = Gravity.CENTER_VERTICAL
+            val padH = dp(12f)
+            setPadding(padH, 0, padH, 0)
+            background = SketchDrawable(
+                seed = 776L,
+                fill = Palette.CARD,
+                stroke = Palette.INK,
+                strokeWidthDp = 2.5f,
+                shadowOffsetDp = 2.5f,
+                cornerDp = 14f,
+                variant = 0
+            )
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                com.example.tulis.ui.showVaultDialog(this@MainActivity, { pickVault() }, { refreshNotebooks() })
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                rightMargin = dp(10f)
+            }
+        }
+        headerLayout.addView(vaultChip)
+
         val sortPill = TextView(this).apply {
             minimumHeight = dp(44f)
             minimumWidth = dp(44f)
@@ -264,50 +354,11 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.CENTER_VERTICAL
-                rightMargin = dp(10f)
             }
         }
         sortBtn = sortPill
-        headerLayout.addView(sortPill)
 
-        val vaultBtn = FrameLayout(this).apply {
-            val s48 = dp(48f)
-            layoutParams = LinearLayout.LayoutParams(s48, s48).apply {
-                gravity = Gravity.CENTER_VERTICAL
-                rightMargin = dp(10f)
-            }
-            background = SketchDrawable(
-                seed = 776L,
-                fill = Palette.CARD,
-                stroke = Palette.INK,
-                strokeWidthDp = 2.5f,
-                shadowOffsetDp = 2.5f,
-                cornerDp = 24f,
-                round = true
-            )
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Cadangan vault"
-
-            val vaultIcon = IconView(context).apply {
-                icon = Icon.VAULT
-                tint = Palette.INK
-                strokeWidthDp = 2f
-                isClickable = false
-                isFocusable = false
-                layoutParams = FrameLayout.LayoutParams(dp(24f), dp(24f)).apply {
-                    gravity = Gravity.CENTER
-                }
-            }
-            addView(vaultIcon)
-
-            setOnClickListener {
-                com.example.tulis.ui.showVaultDialog(this@MainActivity, { pickVault() }, { refreshNotebooks() })
-            }
-        }
-        headerLayout.addView(vaultBtn)
-
-        val settingsBtn = FrameLayout(this).apply {
+        val moreBtn = FrameLayout(this).apply {
             val s48 = dp(48f)
             layoutParams = LinearLayout.LayoutParams(s48, s48).apply {
                 gravity = Gravity.CENTER_VERTICAL
@@ -324,10 +375,10 @@ class MainActivity : Activity() {
             )
             isClickable = true
             isFocusable = true
-            contentDescription = "Pengaturan tampilan"
+            contentDescription = "Menu"
 
-            val settingsIcon = IconView(context).apply {
-                icon = Icon.SETTINGS
+            val moreIcon = IconView(context).apply {
+                icon = Icon.MORE
                 tint = Palette.INK
                 strokeWidthDp = 2f
                 isClickable = false
@@ -336,46 +387,7 @@ class MainActivity : Activity() {
                     gravity = Gravity.CENTER
                 }
             }
-            addView(settingsIcon)
-
-            setOnClickListener {
-                com.example.tulis.ui.showUiSettingsDialog(this@MainActivity) {
-                    recreate()
-                }
-            }
-        }
-        headerLayout.addView(settingsBtn)
-
-        val trashBtn = FrameLayout(this).apply {
-            val s48 = dp(48f)
-            layoutParams = LinearLayout.LayoutParams(s48, s48).apply {
-                gravity = Gravity.CENTER_VERTICAL
-                rightMargin = dp(10f)
-            }
-            background = SketchDrawable(
-                seed = 778L,
-                fill = Palette.CARD,
-                stroke = Palette.INK,
-                strokeWidthDp = 2.5f,
-                shadowOffsetDp = 2.5f,
-                cornerDp = 24f,
-                round = true
-            )
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Baru dihapus"
-
-            val trashIcon = IconView(context).apply {
-                icon = Icon.TRASH
-                tint = Palette.INK
-                strokeWidthDp = 2f
-                isClickable = false
-                isFocusable = false
-                layoutParams = FrameLayout.LayoutParams(dp(24f), dp(24f)).apply {
-                    gravity = Gravity.CENTER
-                }
-            }
-            addView(trashIcon)
+            addView(moreIcon)
 
             val badge = TextView(context).apply {
                 textSize = 12f
@@ -403,10 +415,10 @@ class MainActivity : Activity() {
             addView(badge)
 
             setOnClickListener {
-                startActivity(Intent(this@MainActivity, TrashActivity::class.java))
+                showHomeMenu()
             }
         }
-        headerLayout.addView(trashBtn)
+        headerLayout.addView(moreBtn)
 
         val searchBtn = FrameLayout(this).apply {
             val s48 = dp(48f)
@@ -531,9 +543,17 @@ class MainActivity : Activity() {
         chipInfinite = createChipView("Infinite", FilterTab.INFINITE, 1)
         chipPaged = createChipView("Halaman", FilterTab.PAGED, 2)
 
-        chipsLayout.addView(chipAll)
-        chipsLayout.addView(chipInfinite)
-        chipsLayout.addView(chipPaged)
+        val chipsRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                gravity = Gravity.CENTER_VERTICAL
+            }
+        }
+        chipsRow.addView(chipAll)
+        chipsRow.addView(chipInfinite)
+        chipsRow.addView(chipPaged)
+        chipsLayout.addView(chipsRow)
+        chipsLayout.addView(sortPill)
         contentLayout.addView(chipsLayout)
 
         locationRow = LinearLayout(this).apply {
@@ -1515,16 +1535,40 @@ class MainActivity : Activity() {
     }
 
     private fun showItemOptionsDialog(meta: NotebookMeta) {
+        val actions = mutableListOf(
+            DialogAction("Ganti nama", Palette.YELLOW, Palette.INK) { showRenameDialog(meta) },
+            DialogAction("Pindahkan ke folder…", Palette.YELLOW, Palette.INK) {
+                showFolderPicker("Pindahkan ke…", emptySet(), meta.folderId) { target ->
+                    if (repo.moveNotebook(meta.id, target)) refreshNotebooks()
+                    else Toast.makeText(this, "Gagal memindahkan", Toast.LENGTH_SHORT).show()
+                }
+            },
+            DialogAction("Hapus", Palette.RED, Palette.CARD) { performDeleteNotebook(meta) }
+        )
+        if (isVaultActive()) {
+            actions.add(DialogAction("Hapus dan hapus dari vault", Palette.RED, Palette.CARD) {
+                confirmDeleteFromVault(meta)
+            })
+        }
+        showActionsDialog(meta.title, null, actions)
+    }
+
+    private fun isVaultActive(): Boolean {
+        val phase = VaultSync.get(this).status().phase
+        return phase == VaultSync.Phase.IDLE || phase == VaultSync.Phase.RUNNING
+    }
+
+    private fun confirmDeleteFromVault(meta: NotebookMeta) {
         showActionsDialog(
-            meta.title, null, listOf(
-                DialogAction("Ganti nama", Palette.YELLOW, Palette.INK) { showRenameDialog(meta) },
-                DialogAction("Pindahkan ke folder…", Palette.YELLOW, Palette.INK) {
-                    showFolderPicker("Pindahkan ke…", emptySet(), meta.folderId) { target ->
-                        if (repo.moveNotebook(meta.id, target)) refreshNotebooks()
-                        else Toast.makeText(this, "Gagal memindahkan", Toast.LENGTH_SHORT).show()
+            "Hapus dari vault juga?",
+            "Catatan .md, gambar, dan cadangan notebook ini di vault akan dihapus permanen. Notebook di perangkat masuk sampah.",
+            listOf(
+                DialogAction("Hapus di perangkat dan vault", Palette.RED, Palette.CARD) {
+                    performDeleteNotebook(meta)
+                    VaultSync.get(this).deleteFromVault(listOf(meta.id)) { ok, msg ->
+                        if (!ok) Toast.makeText(this, msg ?: "Gagal menghapus di vault", Toast.LENGTH_LONG).show()
                     }
-                },
-                DialogAction("Hapus", Palette.RED, Palette.CARD) { performDeleteNotebook(meta) }
+                }
             )
         )
     }

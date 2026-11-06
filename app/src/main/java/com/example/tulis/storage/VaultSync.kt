@@ -110,6 +110,7 @@ class VaultSync private constructor(appContext: Context) {
     private var needRepick = false
     private var vaultName: String? = null
     private var listener: ((Status) -> Unit)? = null
+    private val observers = java.util.concurrent.CopyOnWriteArrayList<(Status) -> Unit>()
     private val appVersion: String by lazy {
         try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
@@ -216,6 +217,20 @@ class VaultSync private constructor(appContext: Context) {
         }
     }
 
+    fun deleteFromVault(ids: List<String>, cb: (Boolean, String?) -> Unit) {
+        executor.execute {
+            val result = try {
+                deleteFromVaultSync(ids)
+            } catch (t: SecurityException) {
+                false to "Izin vault hilang"
+            } catch (t: Throwable) {
+                false to (t.message ?: t.javaClass.simpleName)
+            }
+            publish()
+            main.post { cb(result.first, result.second) }
+        }
+    }
+
     fun attentionItems(): List<AttentionItem> = synchronized(lock) { attention.values.toList() }
 
     fun resolveConflict(id: String, choice: ConflictChoice, cb: (Boolean, String?) -> Unit) {
@@ -251,6 +266,73 @@ class VaultSync private constructor(appContext: Context) {
         setAttention(id, null)
         requestSync(listOf(id), now = true)
         return (true to null)
+    }
+
+    private fun deleteFromVaultSync(ids: List<String>): Pair<Boolean, String?> {
+        val tree = readyVault() ?: return (false to VAULT_NOT_READY)
+        val root = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+        val tulis = findChild(tree, root, "Tulis")?.uri
+        val assets = tulis?.let { findChild(tree, it, "_assets")?.uri }
+        val dataDir = tulis?.let { findChild(tree, it, "_data")?.uri }
+        val nb = loadState(tree.toString())
+        var first: String? = null
+        for (id in ids) {
+            if (!validId(id)) continue
+            try {
+                tulis?.let { deleteNote(tree, it, id, nb[id]?.md) }
+                assets?.let { deleteAssetDir(tree, it, id) }
+                dataDir?.let { deleteData(tree, it, id) }
+                nb.remove(id)
+                saveState(tree.toString(), nb)
+                setAttention(id, null)
+            } catch (t: SecurityException) {
+                throw t
+            } catch (t: Throwable) {
+                if (first == null) first = t.message ?: t.javaClass.simpleName
+            }
+        }
+        return (first == null) to first
+    }
+
+    private fun deleteNote(tree: Uri, tulis: Uri, id: String, md: String?) {
+        val listing = listChildren(tree, tulis)
+        val named = md?.let { n -> listing.firstOrNull { it.name == n && ownedBy(id, it) } }
+        if (named != null) {
+            deleteFile(named)
+            return
+        }
+        listing.filter { it.name.endsWith(".md") && !it.name.startsWith(".") && ownedBy(id, it) }
+            .forEach { deleteFile(it) }
+    }
+
+    private fun deleteAssetDir(tree: Uri, assets: Uri, id: String) {
+        findChild(tree, assets, id)?.let { deleteTree(tree, it) }
+    }
+
+    private fun deleteTree(tree: Uri, entry: Entry) {
+        if (tryDelete(entry.uri)) return
+        listChildren(tree, entry.uri).forEach { deleteTree(tree, it) }
+        deleteFile(entry)
+    }
+
+    private fun deleteData(tree: Uri, dataDir: Uri, id: String) {
+        val exact = setOf(".$id.tulis.tmp", ".$id.tulis.prev")
+        val dated = Regex("^$id(\\.\\d{8}-\\d{6})?\\.tulis$")
+        listChildren(tree, dataDir)
+            .filter { it.name in exact || dated.matches(it.name) }
+            .forEach { deleteFile(it) }
+    }
+
+    private fun deleteFile(entry: Entry) {
+        if (!DocumentsContract.deleteDocument(cr, entry.uri)) throw IOException("Gagal menghapus ${entry.name}")
+    }
+
+    private fun tryDelete(uri: Uri): Boolean = try {
+        DocumentsContract.deleteDocument(cr, uri)
+    } catch (t: SecurityException) {
+        throw t
+    } catch (t: Exception) {
+        false
     }
 
     private fun readyVault(): Uri? {
@@ -358,9 +440,17 @@ class VaultSync private constructor(appContext: Context) {
 
     private fun publish() {
         main.post {
-            val l = synchronized(lock) { listener } ?: return@post
-            l(status())
+            val l = synchronized(lock) { listener }
+            if (l == null && observers.isEmpty()) return@post
+            val st = status()
+            l?.invoke(st)
+            for (o in observers) o(st)
         }
+    }
+
+    fun addStatusObserver(o: (Status) -> Unit): () -> Unit {
+        observers.add(o)
+        return { observers.remove(o) }
     }
 
     private fun startRun(tree: Uri) {

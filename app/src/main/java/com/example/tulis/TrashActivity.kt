@@ -19,14 +19,17 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
+import android.widget.CheckBox
 import android.widget.FrameLayout
 import android.widget.GridView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import com.example.tulis.model.NoteMode
 import com.example.tulis.storage.NotebookRepository
 import com.example.tulis.storage.TrashedNotebook
+import com.example.tulis.storage.VaultSync
 import com.example.tulis.ui.Fonts
 import com.example.tulis.ui.Icon
 import com.example.tulis.ui.IconView
@@ -366,6 +369,8 @@ class TrashActivity : Activity() {
         }
         dialogView.addView(messageV)
 
+        val vaultCheck = if (isVaultActive()) buildVaultCheckBox().also { dialogView.addView(it) } else null
+
         val btnRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END
@@ -432,10 +437,13 @@ class TrashActivity : Activity() {
             contentDescription = "Hapus semua notebook selamanya"
             setOnClickListener {
                 dialogRef?.dismiss()
+                val alsoVault = vaultCheck?.isChecked == true
                 thumbExecutor.execute {
+                    val ids = if (alsoVault) repo.listTrash().map { it.meta.id } else emptyList()
                     repo.emptyTrash()
                     mainHandler.post {
                         refreshTrash()
+                        if (ids.isNotEmpty()) deleteFromVault(ids)
                     }
                 }
             }
@@ -575,6 +583,31 @@ class TrashActivity : Activity() {
         )
     }
 
+    private fun isVaultActive(): Boolean {
+        val phase = VaultSync.get(this).status().phase
+        return phase == VaultSync.Phase.IDLE || phase == VaultSync.Phase.RUNNING
+    }
+
+    private fun buildVaultCheckBox(): CheckBox = CheckBox(this).apply {
+        text = "Hapus juga dari vault"
+        setTextColor(Palette.INK)
+        textSize = 17f
+        typeface = Fonts.ui(context)
+        isChecked = false
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            bottomMargin = dp(16f)
+        }
+    }
+
+    private fun deleteFromVault(ids: List<String>) {
+        VaultSync.get(this).deleteFromVault(ids) { ok, msg ->
+            if (!ok) Toast.makeText(this, msg ?: "Gagal menghapus di vault", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun showDeleteForeverConfirmDialog(item: TrashedNotebook) {
         var dialogRef: AlertDialog? = null
         val dialogView = LinearLayout(this).apply {
@@ -620,6 +653,8 @@ class TrashActivity : Activity() {
             }
         }
         dialogView.addView(messageV)
+
+        val vaultCheck = if (isVaultActive()) buildVaultCheckBox().also { dialogView.addView(it) } else null
 
         val btnRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -687,10 +722,12 @@ class TrashActivity : Activity() {
             contentDescription = "Konfirmasi hapus permanen ${item.meta.title}"
             setOnClickListener {
                 dialogRef?.dismiss()
+                val alsoVault = vaultCheck?.isChecked == true
                 thumbExecutor.execute {
                     repo.deleteForever(item.meta.id)
                     mainHandler.post {
                         refreshTrash()
+                        if (alsoVault) deleteFromVault(listOf(item.meta.id))
                     }
                 }
             }
