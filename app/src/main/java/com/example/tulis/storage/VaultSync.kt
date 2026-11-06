@@ -12,6 +12,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
+import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -24,6 +25,7 @@ class VaultSync private constructor(appContext: Context) {
         private const val DEBOUNCE_MS = 3000L
         private const val ARCHIVE_TIMEOUT_SEC = 120L
         private const val FALLBACK_MSG = "Penyedia berkas tidak mendukung ganti nama (tulis tidak atomik)"
+        private const val VAULT_NOT_READY = "Vault belum siap"
         private const val GRANT_FLAGS = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         private val META_KEYS = listOf("title", "mode", "paper", "paperSpacing", "orientation", "folderId", "pageCount")
         private val PROJECTION = arrayOf(
@@ -45,6 +47,19 @@ class VaultSync private constructor(appContext: Context) {
     }
 
     enum class Phase { NOT_CONFIGURED, NEED_REPICK, IDLE, RUNNING }
+
+    enum class RestoreState { NEW, SAME, DIFFERENT }
+
+    data class RestoreItem(
+        val id: String,
+        val title: String,
+        val pageCount: Int,
+        val folderPath: String,
+        val state: RestoreState,
+        val modified: Long
+    )
+
+    enum class RestoreMode { REPLACE, COPY }
 
     data class Status(
         val phase: Phase,
@@ -159,6 +174,114 @@ class VaultSync private constructor(appContext: Context) {
             if (now) startRun(tree) else main.postDelayed(debounce, DEBOUNCE_MS)
             publish()
         }
+    }
+
+    fun listRestorable(cb: (List<RestoreItem>?, String?) -> Unit) {
+        executor.execute {
+            val result = try {
+                listRestorableSync()
+            } catch (t: Throwable) {
+                null to (t.message ?: t.javaClass.simpleName)
+            }
+            main.post { cb(result.first, result.second) }
+        }
+    }
+
+    fun restore(id: String, mode: RestoreMode, cb: (Boolean, String?) -> Unit) {
+        executor.execute {
+            val result = try {
+                restoreSync(id, mode)
+            } catch (t: Throwable) {
+                false to (t.message ?: t.javaClass.simpleName)
+            }
+            main.post { cb(result.first, result.second) }
+        }
+    }
+
+    private fun readyVault(): Uri? {
+        val uri = vaultUri() ?: return null
+        val current = phase()
+        return if (current == Phase.IDLE || current == Phase.RUNNING) uri else null
+    }
+
+    private fun restoreDir(tree: Uri): Uri? {
+        val root = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+        val tulis = findChild(tree, root, "Tulis") ?: return null
+        return findChild(tree, tulis.uri, "_data")?.uri
+    }
+
+    private fun validId(id: String): Boolean = id.isNotEmpty() && id.all { it.isLetterOrDigit() || it == '-' || it == '_' }
+
+    private fun readManifestOf(uri: Uri): NotebookArchive.UnpackResult.Ok? {
+        return try {
+            cr.openInputStream(uri)?.use { NotebookArchive.readManifest(it) }
+        } catch (t: Throwable) {
+            null
+        }
+    }
+
+    private fun listRestorableSync(): Pair<List<RestoreItem>?, String?> {
+        val tree = readyVault() ?: return (null to VAULT_NOT_READY)
+        val dir = restoreDir(tree) ?: return (emptyList<RestoreItem>() to null)
+        val notebooks = File(context.filesDir, "notebooks")
+        val items = listChildren(tree, dir).mapNotNull { entry ->
+            if (entry.name.startsWith(".") || !entry.name.endsWith(".tulis")) return@mapNotNull null
+            val m = readManifestOf(entry.uri) ?: return@mapNotNull null
+            if (!validId(m.id)) return@mapNotNull null
+            val state = when {
+                !File(notebooks, "${m.id}/meta.json").isFile -> RestoreState.NEW
+                repo.hashNotebook(m.id) == m.hash -> RestoreState.SAME
+                else -> RestoreState.DIFFERENT
+            }
+            RestoreItem(m.id, m.title, m.pageCount, m.folderPath.joinToString(" / ") { it.second }, state, entry.modified)
+        }
+        val sorted = items.sortedWith(
+            compareBy<RestoreItem> { when (it.state) { RestoreState.NEW -> 0; RestoreState.DIFFERENT -> 1; RestoreState.SAME -> 2 } }.thenComparator { a, b -> a.title.compareTo(b.title, ignoreCase = true) }
+        )
+        return (sorted to null)
+    }
+
+    private fun restoreSync(id: String, mode: RestoreMode): Pair<Boolean, String?> {
+        if (!validId(id)) return (false to "Cadangan tidak valid")
+        val tree = readyVault() ?: return (false to VAULT_NOT_READY)
+        val zip = File(File(context.cacheDir, "vault-restore").apply { mkdirs() }, "$id.tulis")
+        val staging = File(context.filesDir, "restore-staging/$id")
+        try {
+            val entry = restoreDir(tree)?.let { findChild(tree, it, "$id.tulis") } ?: return (false to "Cadangan tidak ditemukan")
+            val input = cr.openInputStream(entry.uri) ?: return (false to "Tidak bisa membaca vault")
+            input.use { src -> zip.outputStream().use { src.copyTo(it) } }
+            val unpacked = when (val r = NotebookArchive.unpack(zip, staging)) {
+                is NotebookArchive.UnpackResult.Fail -> return (false to r.reason)
+                is NotebookArchive.UnpackResult.Ok -> r
+            }
+            if (unpacked.id != id) return (false to "Arsip tidak cocok")
+            File(staging, "manifest.json").delete()
+            val target = if (mode == RestoreMode.COPY) copyAsNew(staging, unpacked) else unpacked
+            if (!install(staging, target, mode == RestoreMode.REPLACE)) return (false to "Gagal memasang notebook")
+            requestSync(null, now = true)
+            return (true to null)
+        } finally {
+            zip.delete()
+            staging.deleteRecursively()
+        }
+    }
+
+    private fun copyAsNew(staging: File, ok: NotebookArchive.UnpackResult.Ok): NotebookArchive.UnpackResult.Ok {
+        val newId = UUID.randomUUID().toString()
+        val newTitle = "${ok.title} (dari vault)"
+        val metaFile = File(staging, "meta.json")
+        metaFile.writeText(JSONObject(metaFile.readText()).put("id", newId).put("title", newTitle).toString())
+        return NotebookArchive.UnpackResult.Ok(newId, newTitle, ok.hash, ok.pageCount, ok.folderPath)
+    }
+
+    private fun install(staging: File, ok: NotebookArchive.UnpackResult.Ok, replace: Boolean): Boolean {
+        val latch = CountDownLatch(1)
+        var done = false
+        repo.installFromStaging(staging, ok, replace) {
+            done = it
+            latch.countDown()
+        }
+        return latch.await(ARCHIVE_TIMEOUT_SEC, TimeUnit.SECONDS) && done
     }
 
     private fun vaultUri(): Uri? = prefs.getString(KEY_VAULT, null)?.let { Uri.parse(it) }

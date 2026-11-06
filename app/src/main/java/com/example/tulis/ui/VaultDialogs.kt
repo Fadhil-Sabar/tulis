@@ -12,7 +12,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-fun showVaultDialog(activity: Activity, onPick: () -> Unit) {
+fun showVaultDialog(activity: Activity, onPick: () -> Unit, onRestored: () -> Unit) {
     val density = activity.resources.displayMetrics.density
     fun dp(v: Float): Int = (v * density).toInt()
 
@@ -117,6 +117,10 @@ fun showVaultDialog(activity: Activity, onPick: () -> Unit) {
                 actionButton("Cadangkan sekarang", s.phase == VaultSync.Phase.IDLE) {
                     sync.requestSync(null, now = true)
                 },
+                block(8f)
+            )
+            actionsBox.addView(
+                actionButton("Pulihkan dari vault", false) { showRestoreDialog(activity, onRestored) },
                 block(8f)
             )
         }

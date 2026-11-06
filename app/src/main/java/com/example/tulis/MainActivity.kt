@@ -302,7 +302,7 @@ class MainActivity : Activity() {
             addView(vaultIcon)
 
             setOnClickListener {
-                com.example.tulis.ui.showVaultDialog(this@MainActivity) { pickVault() }
+                com.example.tulis.ui.showVaultDialog(this@MainActivity, { pickVault() }, { refreshNotebooks() })
             }
         }
         headerLayout.addView(vaultBtn)
