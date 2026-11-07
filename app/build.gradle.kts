@@ -1,22 +1,45 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
 
+val ksProps = Properties().apply {
+    rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+fun ks(key: String): String? = System.getenv(key) ?: ksProps.getProperty(key)
+
 android {
-    namespace = "com.example.tulis"
+    namespace = "io.github.fadhil_sabar.tulis"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.tulis"
+        applicationId = "io.github.fadhil_sabar.tulis"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 100
+        versionName = "0.1.0"
+    }
+
+    signingConfigs {
+        if (ks("KEYSTORE_FILE") != null) {
+            create("release") {
+                storeFile = file(ks("KEYSTORE_FILE")!!)
+                storePassword = ks("KEYSTORE_PASSWORD")
+                keyAlias = ks("KEY_ALIAS")
+                keyPassword = ks("KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -24,6 +47,10 @@ android {
                 "proguard-rules.pro"
             )
         }
+    }
+
+    lint {
+        baseline = file("lint-baseline.xml")
     }
 
     compileOptions {

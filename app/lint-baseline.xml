@@ -1,0 +1,1595 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 8.13.0" type="baseline" client="gradle" dependencies="false" name="AGP (8.13.0)" variant="all" version="8.13.0">
+
+    <issue
+        id="ResourceType"
+        message="Expected resource of type id"
+        errorLine1="            id = 301"
+        errorLine2="                 ~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="2157"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="ResourceType"
+        message="Expected resource of type id"
+        errorLine1="            id = 302"
+        errorLine2="                 ~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="2168"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="ResourceType"
+        message="Expected resource of type id"
+        errorLine1="            id = 303"
+        errorLine2="                 ~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="2174"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="ResourceType"
+        message="Expected resource of type id"
+        errorLine1="        val swatch = strip.findViewById&lt;ColorSwatchView>(301)"
+        errorLine2="                                                         ~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="2193"
+            column="58"/>
+    </issue>
+
+    <issue
+        id="ResourceType"
+        message="Expected resource of type id"
+        errorLine1="        val dot = strip.findViewById&lt;View>(303)"
+        errorLine2="                                           ~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="2200"
+            column="44"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#hasDisplayList`"
+        errorLine1="        if (p !== recPage || contentDirty || !node.hasDisplayList() || currentSize &lt; recCount) {"
+        errorLine2="                                                   ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/CanvasLayer.kt"
+            line="723"
+            column="52"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.Canvas#drawRenderNode`"
+        errorLine1="        canvas.drawRenderNode(node)"
+        errorLine2="               ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/CanvasLayer.kt"
+            line="744"
+            column="16"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#setPosition`"
+        errorLine1="                node.setPosition(0, 0, 0, 0)"
+        errorLine2="                     ~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/CanvasLayer.kt"
+            line="772"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#beginRecording`"
+        errorLine1="                val renderCanvas = node.beginRecording(1, 1)"
+        errorLine2="                                        ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/CanvasLayer.kt"
+            line="773"
+            column="41"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#endRecording`"
+        errorLine1="                node.endRecording()"
+        errorLine2="                     ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/CanvasLayer.kt"
+            line="774"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#setPosition`"
+        errorLine1="                node.setPosition(0, 0, 0, 0)"
+        errorLine2="                     ~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/CanvasLayer.kt"
+            line="794"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#beginRecording`"
+        errorLine1="                val renderCanvas = node.beginRecording(1, 1)"
+        errorLine2="                                        ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/CanvasLayer.kt"
+            line="795"
+            column="41"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#endRecording`"
+        errorLine1="                node.endRecording()"
+        errorLine2="                     ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/CanvasLayer.kt"
+            line="796"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#setPosition`"
+        errorLine1="            node.setPosition(left, top, right, bottom)"
+        errorLine2="                 ~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/CanvasLayer.kt"
+            line="810"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#beginRecording`"
+        errorLine1="            val renderCanvas = node.beginRecording(nodeWidth, nodeHeight)"
+        errorLine2="                                    ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/CanvasLayer.kt"
+            line="812"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Implicit cast from `RecordingCanvas` to `Canvas` requires API level 29 (current min is 26)"
+        errorLine1="                    InkBridge.draw(strokeRenderer, renderCanvas, strokeItem, tmpItemMatrix, tmpMatrix)"
+        errorLine2="                                                   ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/CanvasLayer.kt"
+            line="818"
+            column="52"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#endRecording`"
+        errorLine1="                node.endRecording()"
+        errorLine2="                     ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/CanvasLayer.kt"
+            line="821"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 28 (current min is 26): `android.graphics.Typeface#create`"
+        errorLine1="            val weighted = Typeface.create(base, 700, false)"
+        errorLine2="                                    ~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/Fonts.kt"
+            line="25"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 28 (current min is 26): `android.graphics.Typeface#create`"
+        errorLine1="            val weighted = Typeface.create(base, 600, false)"
+        errorLine2="                                    ~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/Fonts.kt"
+            line="32"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode()`"
+        errorLine1="            val node = RenderNode(&quot;PageRenderCacheNode&quot;).apply {"
+        errorLine2="                       ~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/PageRenderCache.kt"
+            line="63"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#setClipToBounds`"
+        errorLine1="                setClipToBounds(false)"
+        errorLine2="                ~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/PageRenderCache.kt"
+            line="64"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#hasDisplayList`"
+        errorLine1="        if (entry.dirty || !node.hasDisplayList() || currentSize &lt; entry.recCount) {"
+        errorLine2="                                 ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/PageRenderCache.kt"
+            line="79"
+            column="34"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.Canvas#drawRenderNode`"
+        errorLine1="        canvas.drawRenderNode(node)"
+        errorLine2="               ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/PageRenderCache.kt"
+            line="100"
+            column="16"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#setPosition`"
+        errorLine1="                node.setPosition(0, 0, 0, 0)"
+        errorLine2="                     ~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/PageRenderCache.kt"
+            line="135"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#beginRecording`"
+        errorLine1="                node.beginRecording(1, 1)"
+        errorLine2="                     ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/PageRenderCache.kt"
+            line="136"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#endRecording`"
+        errorLine1="                node.endRecording()"
+        errorLine2="                     ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/PageRenderCache.kt"
+            line="137"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#setPosition`"
+        errorLine1="                node.setPosition(0, 0, 0, 0)"
+        errorLine2="                     ~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/PageRenderCache.kt"
+            line="157"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#beginRecording`"
+        errorLine1="                node.beginRecording(1, 1)"
+        errorLine2="                     ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/PageRenderCache.kt"
+            line="158"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#endRecording`"
+        errorLine1="                node.endRecording()"
+        errorLine2="                     ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/PageRenderCache.kt"
+            line="159"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#setPosition`"
+        errorLine1="            node.setPosition(left, top, right, bottom)"
+        errorLine2="                 ~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/PageRenderCache.kt"
+            line="173"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#beginRecording`"
+        errorLine1="            val renderCanvas = node.beginRecording(nodeWidth, nodeHeight)"
+        errorLine2="                                    ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/PageRenderCache.kt"
+            line="175"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Implicit cast from `RecordingCanvas` to `Canvas` requires API level 29 (current min is 26)"
+        errorLine1="                    InkBridge.draw(strokeRenderer, renderCanvas, strokeItem, tmpItemMatrix, tmpMatrix)"
+        errorLine2="                                                   ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/PageRenderCache.kt"
+            line="181"
+            column="52"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 29 (current min is 26): `android.graphics.RenderNode#endRecording`"
+        errorLine1="                node.endRecording()"
+        errorLine2="                     ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/PageRenderCache.kt"
+            line="184"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="`android:forceDarkAllowed` requires API level 29 (current min is 26)"
+        errorLine1="        &lt;item name=&quot;android:forceDarkAllowed&quot;>false&lt;/item>"
+        errorLine2="              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/styles.xml"
+            line="4"
+            column="15"/>
+    </issue>
+
+    <issue
+        id="OldTargetApi"
+        message="Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the `android.os.Build.VERSION_CODES` javadoc for details."
+        errorLine1="        targetSdk = 35"
+        errorLine2="        ~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="20"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="AndroidGradlePluginVersion"
+        message="A newer version of Gradle than 8.13 is available: 8.14.6"
+        errorLine1="distributionUrl=https\://services.gradle.org/distributions/gradle-8.13-bin.zip"
+        errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/Code/SideProject/tulis/gradle/wrapper/gradle-wrapper.properties"
+            line="3"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.input:input-motionprediction than 1.0.0 is available: 1.0.1"
+        errorLine1="    implementation(&quot;androidx.input:input-motionprediction:1.0.0&quot;)"
+        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="75"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of org.json:json than 20231013 is available: 20260814"
+        errorLine1="    testImplementation(&quot;org.json:json:20231013&quot;)"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="77"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="This folder configuration (`v26`) is unnecessary; `minSdkVersion` is 26. Merge all the resources in this folder into `mipmap-anydpi`.">
+        <location
+            file="src/main/res/mipmap-anydpi-v26"/>
+    </issue>
+
+    <issue
+        id="StaticFieldLeak"
+        message="Do not place Android context classes in static fields (static reference to `VaultSync` which has field `context` pointing to `Context`); this is a memory leak"
+        errorLine1="        @Volatile"
+        errorLine2="        ^">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/storage/VaultSync.kt"
+            line="51"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="MonochromeLauncherIcon"
+        message="The application adaptive icon is missing a monochrome tag"
+        errorLine1="&lt;adaptive-icon xmlns:android=&quot;http://schemas.android.com/apk/res/android&quot;>"
+        errorLine2="^">
+        <location
+            file="src/main/res/mipmap-anydpi-v26/ic_launcher.xml"
+            line="2"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="ViewConstructor"
+        message="Custom view `SketchSlider` is missing constructor used by tools: `(Context)` or `(Context,AttributeSet)` or `(Context,AttributeSet,int)`"
+        errorLine1="class SketchSlider("
+        errorLine2="      ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/SketchSlider.kt"
+            line="17"
+            column="7"/>
+    </issue>
+
+    <issue
+        id="ClickableViewAccessibility"
+        message="Custom view ``FrameLayout`` has `setOnTouchListener` called on it but does not override `performClick`"
+        errorLine1="        handleContainer.setOnTouchListener { v, event ->"
+        errorLine2="        ^">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="1329"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="ClickableViewAccessibility"
+        message="`onTouch` lambda should call `View#performClick` when a click is detected"
+        errorLine1="        handleContainer.setOnTouchListener { v, event ->"
+        errorLine2="                                           ^">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="1329"
+            column="44"/>
+    </issue>
+
+    <issue
+        id="ClickableViewAccessibility"
+        message="Custom view `MinimapView` overrides `onTouchEvent` but not `performClick`"
+        errorLine1="    override fun onTouchEvent(event: MotionEvent): Boolean {"
+        errorLine2="                 ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/MinimapView.kt"
+            line="285"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="ClickableViewAccessibility"
+        message="Custom view `NoteCanvasView` overrides `onTouchEvent` but not `performClick`"
+        errorLine1="    override fun onTouchEvent(event: MotionEvent): Boolean {"
+        errorLine2="                 ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/canvas/NoteCanvasView.kt"
+            line="738"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="            text = &quot;$pct%&quot;"
+        errorLine2="                   ~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="627"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="                text = &quot;1 / ${m.pageCount}&quot;"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="898"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Halaman&quot;"
+        errorLine2="                    ~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="1517"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Halaman&quot;"
+        errorLine2="                    ~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="1563"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="                text = &quot;${i + 1}&quot;"
+        errorLine2="                          ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="1659"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="                text = &quot;${i + 1}&quot;"
+        errorLine2="                          ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="1677"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                text = &quot;Pusatkan&quot;"
+        errorLine2="                        ~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="1888"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                text = &quot;100%&quot;"
+        errorLine2="                        ~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="1898"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Warna&quot;"
+        errorLine2="                    ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="1926"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Ketebalan&quot;"
+        errorLine2="                    ~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="2016"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Jari bisa menggambar&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="2074"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Pusatkan&quot;"
+        errorLine2="                    ~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="2319"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;100%&quot;"
+        errorLine2="                    ~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="2327"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="                it.text = &quot;$pct%&quot;"
+        errorLine2="                          ~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="2354"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="                it.text = &quot;$pct%&quot;"
+        errorLine2="                          ~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="2361"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Warna&quot;"
+        errorLine2="                    ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="2722"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Ketebalan&quot;"
+        errorLine2="                    ~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="2797"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Jari bisa menggambar&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="2850"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="            text = &quot;1 / ${m.pageCount}&quot;"
+        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="2990"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Halaman&quot;"
+        errorLine2="                    ~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="3061"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="        pageIndicator?.text = &quot;$currentDisplay / ${m.pageCount}&quot;"
+        errorLine2="                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="3125"
+            column="31"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="        tabletPagePill?.text = &quot;$currentDisplay / ${m.pageCount}&quot;"
+        errorLine2="                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="3126"
+            column="32"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Hapus Halaman&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="3209"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Hapus halaman ini?&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="3218"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Batal&quot;"
+        errorLine2="                    ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="3235"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Hapus&quot;"
+        errorLine2="                    ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="3253"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                text = &quot;Hapus&quot;"
+        errorLine2="                        ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="3417"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Batal&quot;"
+        errorLine2="                    ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="3438"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Simpan&quot;"
+        errorLine2="                    ~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="3456"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Ganti Nama Notebook&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="3727"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Batal&quot;"
+        errorLine2="                    ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="3759"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Simpan&quot;"
+        errorLine2="                    ~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/EditorActivity.kt"
+            line="3777"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="        text = &quot;Menyiapkan...&quot;"
+        errorLine2="                ~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/ExportDialogs.kt"
+            line="176"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            status.text = &quot;Membatalkan...&quot;"
+        errorLine2="                           ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/ExportDialogs.kt"
+            line="193"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Tulis&quot;"
+        errorLine2="                    ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="273"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;+ Folder&quot;"
+        errorLine2="                    ~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="579"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                text = &quot;Baru&quot;"
+        errorLine2="                        ~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="755"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="                emptyText.text = &quot;Tidak ada yang cocok dengan &apos;$currentSearchQuery&apos;&quot;"
+        errorLine2="                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="890"
+            column="34"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                emptyText.text = &quot;Tidak ada yang cocok dengan &apos;$currentSearchQuery&apos;&quot;"
+        errorLine2="                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="890"
+            column="35"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                emptyActionBtn.text = &quot;Hapus pencarian&quot;"
+        errorLine2="                                       ~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="892"
+            column="40"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="                emptyText.text = &quot;Belum ada notebook $modeName&quot;"
+        errorLine2="                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="899"
+            column="34"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                emptyText.text = &quot;Belum ada notebook $modeName&quot;"
+        errorLine2="                                  ~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="899"
+            column="35"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="                emptyText.text = &quot;Folder ini kosong.\nKetuk tombol Baru ↘ untuk membuat catatan di sini.&quot;"
+        errorLine2="                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="903"
+            column="34"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                emptyText.text = &quot;Folder ini kosong.\nKetuk tombol Baru ↘ untuk membuat catatan di sini.&quot;"
+        errorLine2="                                  ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="903"
+            column="35"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                emptyText.text = &quot;Folder ini kosong.\nKetuk tombol Baru ↘ untuk membuat catatan di sini.&quot;"
+        errorLine2="                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="903"
+            column="55"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="                emptyText.text = &quot;Belum ada notebook.\nKetuk tombol Baru ↘ untuk membuat catatan.&quot;"
+        errorLine2="                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="907"
+            column="34"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                emptyText.text = &quot;Belum ada notebook.\nKetuk tombol Baru ↘ untuk membuat catatan.&quot;"
+        errorLine2="                                  ~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="907"
+            column="35"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                emptyText.text = &quot;Belum ada notebook.\nKetuk tombol Baru ↘ untuk membuat catatan.&quot;"
+        errorLine2="                                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="907"
+            column="56"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Notebook baru&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="956"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Judul&quot;"
+        errorLine2="                    ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="971"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Jenis kanvas&quot;"
+        errorLine2="                    ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="1012"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Orientasi halaman&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="1035"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Potret&quot;"
+        errorLine2="                    ~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="1086"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Lanskap&quot;"
+        errorLine2="                    ~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="1113"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                text = &quot;Tak terbatas&quot;"
+        errorLine2="                        ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="1196"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                text = &quot;Geser dan zoom bebas, cocok untuk brainstorm&quot;"
+        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="1203"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                text = &quot;Per halaman&quot;"
+        errorLine2="                        ~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="1248"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                text = &quot;Halaman A4 yang ditambah satu per satu&quot;"
+        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="1255"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Batal&quot;"
+        errorLine2="                    ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="1293"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Buat notebook&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="1320"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Batal&quot;"
+        errorLine2="                    ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="1483"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Batal&quot;"
+        errorLine2="                    ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="1787"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="                metaText.text = &quot;Tak terbatas · $dateStr&quot;"
+        errorLine2="                                ~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="2105"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                metaText.text = &quot;Tak terbatas · $dateStr&quot;"
+        errorLine2="                                 ~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="2105"
+            column="34"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="                metaText.text = &quot;${meta.pageCount} halaman · $dateStr&quot;"
+        errorLine2="                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="2108"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                metaText.text = &quot;${meta.pageCount} halaman · $dateStr&quot;"
+        errorLine2="                                                  ~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/MainActivity.kt"
+            line="2108"
+            column="51"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="        text = &quot;Pulihkan dari Vault&quot;"
+        errorLine2="                ~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/RestoreDialogs.kt"
+            line="77"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="        text = &quot;Tampilan&quot;"
+        errorLine2="                ~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/SettingsDialogs.kt"
+            line="46"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="        text = &quot;Ukuran font&quot;"
+        errorLine2="                ~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/SettingsDialogs.kt"
+            line="59"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="        text = &quot;Zoom tampilan (tombol, ikon, teks)&quot;"
+        errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/SettingsDialogs.kt"
+            line="99"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="        text = &quot;Peta mini (kanvas tak terbatas)&quot;"
+        errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/SettingsDialogs.kt"
+            line="147"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            toggleBtn.text = &quot;Aktif&quot;"
+        errorLine2="                              ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/SettingsDialogs.kt"
+            line="171"
+            column="31"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            toggleBtn.text = &quot;Mati&quot;"
+        errorLine2="                              ~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/SettingsDialogs.kt"
+            line="176"
+            column="31"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="        text = &quot;Selesai&quot;"
+        errorLine2="                ~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/SettingsDialogs.kt"
+            line="210"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="        text = &quot;Kertas&quot;"
+        errorLine2="                ~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/SettingsDialogs.kt"
+            line="340"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="        text = &quot;Gaya kertas&quot;"
+        errorLine2="                ~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/SettingsDialogs.kt"
+            line="353"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="        text = &quot;Jarak&quot;"
+        errorLine2="                ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/SettingsDialogs.kt"
+            line="390"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Orientasi halaman&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/SettingsDialogs.kt"
+            line="500"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="        text = &quot;Selesai&quot;"
+        errorLine2="                ~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/SettingsDialogs.kt"
+            line="558"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Baru dihapus&quot;"
+        errorLine2="                    ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="160"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Notebook dihapus otomatis setelah 30 hari&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="168"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Kosongkan&quot;"
+        errorLine2="                    ~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="186"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                text = &quot;Tidak ada notebook yang dihapus&quot;"
+        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="278"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="                text = &quot;Notebook yang dihapus muncul di sini selama 30 hari&quot;"
+        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="286"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Kosongkan sampah&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="343"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Hapus semua notebook ini selamanya?&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="358"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Batal&quot;"
+        errorLine2="                    ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="384"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Hapus semua&quot;"
+        errorLine2="                    ~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="417"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Pulihkan&quot;"
+        errorLine2="                    ~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="498"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Hapus permanen&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="533"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="        text = &quot;Hapus juga dari vault&quot;"
+        errorLine2="                ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="592"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Hapus permanen?&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="628"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="            text = &quot;\&quot;${item.meta.title}\&quot; akan dihapus selamanya dan tidak dapat dibatalkan.&quot;"
+        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="643"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;\&quot;${item.meta.title}\&quot; akan dihapus selamanya dan tidak dapat dibatalkan.&quot;"
+        errorLine2="                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="643"
+            column="43"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Batal&quot;"
+        errorLine2="                    ~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="669"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;Hapus permanen&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/TrashActivity.kt"
+            line="702"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            text = &quot;URUNGKAN&quot;"
+        errorLine2="                    ~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/UndoBar.kt"
+            line="72"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="        text = &quot;Cadangan ke Vault&quot;"
+        errorLine2="                ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/VaultDialogs.kt"
+            line="70"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="                text = &quot;• ${item.title} — ${item.reason} ›&quot;"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/io/github/fadhil_sabar/tulis/ui/VaultDialogs.kt"
+            line="105"
+            column="24"/>
+    </issue>
+
+</issues>
