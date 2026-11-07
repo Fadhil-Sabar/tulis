@@ -4,6 +4,9 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan
 
 ## [Unreleased]
 
+### Diubah
+- Stabilo kini digambar di bawah tulisan, termasuk di thumbnail dan hasil ekspor
+
 ## [0.1.0] - 2026-11-07
 
 ### Ditambahkan

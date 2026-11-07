@@ -15,6 +15,7 @@ import android.widget.FrameLayout
 import android.widget.OverScroller
 import androidx.input.motionprediction.MotionEventPredictor
 import io.github.fadhil_sabar.tulis.ink.InkBridge
+import io.github.fadhil_sabar.tulis.ink.forEachInDrawOrder
 import io.github.fadhil_sabar.tulis.ink.LiveInk
 import io.github.fadhil_sabar.tulis.ink.LiveInkListener
 import io.github.fadhil_sabar.tulis.ink.StrokeItem
@@ -537,7 +538,7 @@ class NoteCanvasView @JvmOverloads constructor(
             canvas.clipRect(pageRect)
 
             val tempMat = Matrix()
-            for (stroke in page.strokes) {
+            forEachInDrawOrder(page.strokes) { stroke ->
                 InkBridge.draw(thumbnailRenderer, canvas, stroke, drawMatrix, tempMat)
             }
 
@@ -592,7 +593,7 @@ class NoteCanvasView @JvmOverloads constructor(
                 canvas.clipRect(pageRect)
 
                 val tempMat = Matrix()
-                for (stroke in p.strokes) {
+                forEachInDrawOrder(p.strokes) { stroke ->
                     InkBridge.draw(thumbnailRenderer, canvas, stroke, drawMatrix, tempMat)
                 }
 
@@ -667,7 +668,7 @@ class NoteCanvasView @JvmOverloads constructor(
                     drawMatrix.postTranslate(tx, ty)
 
                     val tempMat = Matrix()
-                    for (stroke in p.strokes) {
+                    forEachInDrawOrder(p.strokes) { stroke ->
                         InkBridge.draw(thumbnailRenderer, canvas, stroke, drawMatrix, tempMat)
                     }
 

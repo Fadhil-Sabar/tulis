@@ -8,6 +8,7 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
 import io.github.fadhil_sabar.tulis.ink.InkBridge
+import io.github.fadhil_sabar.tulis.ink.forEachInDrawOrder
 import io.github.fadhil_sabar.tulis.model.PageContent
 import io.github.fadhil_sabar.tulis.model.PaperStyle
 import io.github.fadhil_sabar.tulis.model.TextItem
@@ -63,7 +64,7 @@ class PageRenderer(
     }
 
     private fun drawContent(canvas: Canvas, page: PageContent, worldToDevice: Matrix) {
-        for (stroke in page.strokes) {
+        forEachInDrawOrder(page.strokes) { stroke ->
             InkBridge.draw(strokeRenderer, canvas, stroke, worldToDevice, tmp)
         }
         canvas.save()

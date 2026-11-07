@@ -8,6 +8,8 @@ import android.graphics.RenderNode
 import android.os.Build
 import android.os.Trace
 import io.github.fadhil_sabar.tulis.ink.InkBridge
+import io.github.fadhil_sabar.tulis.ink.forEachInDrawOrder
+import io.github.fadhil_sabar.tulis.model.BrushKind
 import io.github.fadhil_sabar.tulis.ink.InkRenderer
 import io.github.fadhil_sabar.tulis.model.PageContent
 import java.util.IdentityHashMap
@@ -175,8 +177,7 @@ class PageRenderCache(context: Context) {
             val renderCanvas = node.beginRecording(nodeWidth, nodeHeight)
             try {
                 renderCanvas.translate(-left.toFloat(), -top.toFloat())
-                for (i in 0 until strokeCount) {
-                    val strokeItem = strokes[i]
+                forEachInDrawOrder(strokes) { strokeItem ->
                     tmpItemMatrix.set(pageToScreen)
                     InkBridge.draw(strokeRenderer, renderCanvas, strokeItem, tmpItemMatrix, tmpMatrix)
                 }
@@ -196,15 +197,13 @@ class PageRenderCache(context: Context) {
         endIndex: Int
     ) {
         val strokes = page.strokes
-        val limit = minOf(endIndex, strokes.size)
         screenBoundsRect.set(0f, 0f, canvas.width.toFloat(), canvas.height.toFloat())
 
-        for (i in startIndex until limit) {
-            val strokeItem = strokes[i]
+        forEachInDrawOrder(strokes, startIndex, endIndex) { strokeItem ->
             if (strokeItem.worldBounds(strokeBoundsRect)) {
                 pageToScreen.mapRect(strokeBoundsRect)
                 if (!RectF.intersects(strokeBoundsRect, screenBoundsRect)) {
-                    continue
+                    return@forEachInDrawOrder
                 }
             }
             tmpItemMatrix.set(pageToScreen)
@@ -214,7 +213,7 @@ class PageRenderCache(context: Context) {
 
     fun onStrokeAppended(page: PageContent) {
         val entry = nodes[page] ?: return
-        if (entry.recRevision == page.revision - 1) {
+        if (entry.recRevision == page.revision - 1 && page.strokes.lastOrNull()?.brushKind != BrushKind.HIGHLIGHTER) {
             entry.recRevision = page.revision
         } else {
             entry.dirty = true

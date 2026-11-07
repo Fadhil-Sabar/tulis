@@ -13,6 +13,8 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import android.view.View
 import io.github.fadhil_sabar.tulis.ink.InkBridge
+import io.github.fadhil_sabar.tulis.ink.forEachInDrawOrder
+import io.github.fadhil_sabar.tulis.model.BrushKind
 import io.github.fadhil_sabar.tulis.ink.InkRenderer
 import io.github.fadhil_sabar.tulis.model.NoteMode
 import io.github.fadhil_sabar.tulis.model.PageContent
@@ -228,7 +230,7 @@ class CanvasLayer(context: Context) : View(context) {
 
     fun onStrokeAppended() {
         val p = page ?: return
-        if (recPage === p && recRevision == p.revision - 1) {
+        if (recPage === p && recRevision == p.revision - 1 && p.strokes.lastOrNull()?.brushKind != BrushKind.HIGHLIGHTER) {
             recRevision = p.revision
         } else {
             contentDirty = true
@@ -812,8 +814,7 @@ class CanvasLayer(context: Context) : View(context) {
             val renderCanvas = node.beginRecording(nodeWidth, nodeHeight)
             try {
                 renderCanvas.translate(-left.toFloat(), -top.toFloat())
-                for (i in 0 until strokeCount) {
-                    val strokeItem = strokes[i]
+                forEachInDrawOrder(strokes) { strokeItem ->
                     tmpItemMatrix.set(viewport.worldToScreen)
                     InkBridge.draw(strokeRenderer, renderCanvas, strokeItem, tmpItemMatrix, tmpMatrix)
                 }
@@ -827,12 +828,10 @@ class CanvasLayer(context: Context) : View(context) {
 
     private fun drawStrokesDirect(canvas: Canvas, p: PageContent, startIndex: Int, endIndex: Int) {
         val strokes = p.strokes
-        val limit = minOf(endIndex, strokes.size)
-        for (i in startIndex until limit) {
-            val strokeItem = strokes[i]
+        forEachInDrawOrder(strokes, startIndex, endIndex) { strokeItem ->
             if (strokeItem.worldBounds(strokeBoundsRect)) {
                 if (!RectF.intersects(strokeBoundsRect, visibleWorldRect)) {
-                    continue
+                    return@forEachInDrawOrder
                 }
             }
             tmpItemMatrix.set(viewport.worldToScreen)
