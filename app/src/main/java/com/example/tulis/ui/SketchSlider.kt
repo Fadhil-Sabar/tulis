@@ -221,6 +221,6 @@ class SketchSlider(
         val p = toProgress(value)
         if (seekBar.progress != p) seekBar.progress = p
         val s = display(value)
-        if (force || (field.text.toString() != s && !field.hasFocus())) field.setText(s)
+        if (force || field.text.toString() != s) field.setText(s)
     }
 }
