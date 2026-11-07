@@ -1,6 +1,6 @@
 # Tulis
 
-Tulis adalah aplikasi catatan tulisan tangan untuk Android. Aplikasinya ringan, berjalan sepenuhnya offline, dan tidak meminta izin apa pun. Goresan digambar dengan [AndroidX Ink](https://developer.android.com/jetpack/androidx/releases/ink), sedangkan antarmukanya memakai View biasa tanpa Compose, AppCompat, atau Material.
+Aplikasi handwriting untuk Android, offline dan tidak minta izin apa pun, termasuk internet. Tinta digambar pakai [AndroidX Ink](https://developer.android.com/jetpack/androidx/releases/ink), antarmukanya View biasa, tidak memakai Compose, AppCompat, atau Material supaya APK tetap kecil.
 
 <p align="center">
   <img src="fastlane/metadata/android/en-US/images/tenInchScreenshots/1.png" width="49%" alt="Beranda">
@@ -9,65 +9,59 @@ Tulis adalah aplikasi catatan tulisan tangan untuk Android. Aplikasinya ringan, 
 
 ## Performa
 
-Target utama Tulis adalah tinta yang muncul cepat saat stylus bergerak dan aplikasi yang tetap kecil.
+Diukur dari build rilis di tablet Xiaomi 25040RP0AG:
 
-| Ukuran | Nilai |
+| | |
 |---|---|
-| Ukuran APK rilis | 5,9 MiB |
-| Start dingin | sekitar 0,65 detik (median dari 5 kali ukur, rentang 0,59 sampai 0,87 detik) |
-| Izin | tidak ada |
+| Ukuran APK | 5,9 MiB |
+| Cold start | ±0,65 detik |
+| Izin | 0 |
 
-Angka di atas diukur pada build rilis di tablet Xiaomi 25040RP0AG dengan `am start -W` setelah `force-stop`.
+Angka cold start adalah median dari 5 kali `am start -W` setelah `force-stop`. Paling cepat 0,59 detik, paling lambat 0,87 detik.
 
-Beberapa keputusan teknis yang membuat aplikasi ini ringan:
-
-- Goresan digambar oleh mesin AndroidX Ink. Prediksi gerakan stylus (`MotionEventPredictor`) dipakai untuk memperkecil jeda antara ujung stylus dan tinta.
-- Setiap halaman disimpan dalam satu file biner. File dimuat saat dibutuhkan (lazy loading) di luar thread UI, lalu hasil render halaman dan thumbnail disimpan di cache LRU.
-- Ekspor PDF menyimpan goresan sebagai vektor, jadi hasilnya tetap tajam saat diperbesar.
-- Aplikasi tidak memakai jaringan, analitik, atau layanan latar belakang.
+Supaya tinta tidak telat mengikuti ujung stylus, goresan digambar oleh mesin AndroidX Ink dan posisinya diprediksi dengan `MotionEventPredictor`. Tiap halaman disimpan sebagai satu file biner yang baru dimuat saat dibutuhkan, di luar thread UI. Hasil render halaman dan thumbnail disimpan di cache LRU. Di dalam aplikasi juga tidak ada kode jaringan, analitik, atau layanan latar belakang.
 
 ## Fitur
 
-- Dua mode per notebook: kanvas tak hingga, atau halaman yang digulir vertikal (potret atau lanskap) dengan peta mini
-- Pena, spidol, stabilo, dan penghapus dengan ketebalan yang bisa diatur
-- Urungkan dan ulangi yang berlaku lintas halaman
-- Gaya kertas polos, bergaris, kotak-kotak, dan titik
-- Folder bersarang dan tempat sampah
-- Ekspor PDF (vektor) dan PNG
-- Cadangan ke folder Obsidian vault lewat Storage Access Framework (SAF), meliputi arsip `.tulis`, publikasi catatan sebagai `.md` dan PNG, pemulihan notebook, dan penyelesaian konflik
-- Tata letak untuk ponsel dan tablet
+- Notebook bisa berupa kanvas tak hingga atau halaman yang digulir ke bawah (potret atau lanskap), lengkap dengan peta mini
+- Pena, spidol, stabilo, dan penghapus. Ketebalannya bisa diatur, dan urungkan/ulangi tetap jalan walaupun pindah halaman
+- Kertas polos, bergaris, kotak-kotak, atau titik
+- Folder di dalam folder, plus tempat sampah
+- Ekspor ke PDF dan PNG. PDF-nya berisi vektor, jadi tetap tajam saat di-zoom
+- Backup ke folder Obsidian vault lewat SAF. Notebook disimpan sebagai arsip `.tulis`, catatan bisa dipublikasikan sebagai `.md` dan PNG, dan isinya bisa dipulihkan lagi. Kalau versi di HP dan di vault bentrok, kamu bisa pilih pakai yang lokal, yang di vault, atau simpan keduanya
+- Tampilan untuk ponsel dan tablet
 
 ## Unduh
 
-APK bertanda tangan tersedia di halaman [Releases](https://github.com/Fadhil-Sabar/tulis/releases), lengkap dengan nilai SHA-256 untuk tiap APK. Tulis membutuhkan Android 8.0 (API 26) atau lebih baru.
+APK yang sudah ditandatangani ada di [Releases](https://github.com/Fadhil-Sabar/tulis/releases), masing-masing dengan nilai SHA-256. Minimal Android 8.0 (API 26).
 
 ## Privasi
 
-- Tulis tidak meminta izin apa pun, termasuk akses internet, dan tidak mengirim data analitik.
-- Catatan disimpan di penyimpanan internal aplikasi. Folder vault hanya diakses setelah Anda memilihnya sendiri.
-- Auto Backup Android aktif. Jika cadangan Google di perangkat Anda menyala, folder catatan ikut dicadangkan, kecuali isi tempat sampah.
+Tulis tidak minta izin apa pun dan tidak ada analitik. Catatan tersimpan di penyimpanan internal aplikasi. Folder vault baru dibuka kalau kamu sendiri yang memilihnya.
+
+Tulis sendiri tidak punya fitur backup ke cloud. Aplikasinya hanya mengizinkan Auto Backup Android (`allowBackup`), jadi folder catatan bisa ikut ter-backup oleh layanan backup bawaan HP dan ikut pindah saat transfer data ke HP baru. Isi tempat sampah tidak ikut. Kalau HP kamu tidak punya layanan backup atau fiturnya mati, catatan hanya ada di HP dan di vault yang kamu pilih.
 
 ## Build
 
-Build membutuhkan JDK 17 dan Android SDK (`ANDROID_HOME`).
+Butuh JDK 17 dan Android SDK (`ANDROID_HOME`).
 
 ```sh
 ./gradlew assembleDebug testDebugUnitTest lintDebug
 ./gradlew installDebug
 ```
 
-Untuk APK rilis bertanda tangan, siapkan `keystore.properties` lokal atau variabel lingkungan `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, dan `KEY_PASSWORD`. Jika keduanya tidak ada, `assembleRelease` tetap berjalan dan menghasilkan APK tanpa tanda tangan.
+Untuk APK rilis yang ditandatangani, isi `keystore.properties` atau set env `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, dan `KEY_PASSWORD`. Kalau tidak ada, `assembleRelease` tetap jalan, hanya saja APK-nya tidak ditandatangani.
 
 ## Berkontribusi
 
-Issue dan pull request terbuka untuk siapa saja. Sebelum mengubah kode, baca [AGENTS.md](AGENTS.md) yang berisi struktur kode, jebakan yang sudah diketahui, dan konvensi commit. Perubahan yang terlihat oleh pengguna dicatat di [CHANGELOG.md](CHANGELOG.md). Kerentanan keamanan bisa dilaporkan lewat fitur "Report a vulnerability" di tab Security repo ini.
+Silakan buka issue atau pull request. Struktur kode, jebakan yang sudah ketahuan, dan aturan commit ada di [AGENTS.md](AGENTS.md). Perubahan yang terasa ke pengguna dicatat di [CHANGELOG.md](CHANGELOG.md). Kalau menemukan celah keamanan, laporkan lewat "Report a vulnerability" di tab Security.
 
 ## Lisensi
 
-Kode dirilis dengan lisensi [Apache-2.0](LICENSE). Font Caveat dan Patrick Hand memakai lisensi SIL OFL 1.1, detailnya ada di [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[Apache-2.0](LICENSE). Font Caveat dan Patrick Hand pakai SIL OFL 1.1, lihat [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## English summary
 
-Tulis is a small, fully offline handwriting notes app for Android. Strokes are drawn with AndroidX Ink and the UI uses plain Views. The release APK is 5.9 MiB and cold-starts in about 0.65 s on the test tablet. You can choose between an infinite canvas and vertically scrolling pages, organize notebooks in nested folders, export to PDF or PNG, and back up to an Obsidian vault through the Storage Access Framework. The app requests no permissions, and the UI is in Indonesian.
+Tulis is an offline handwriting notes app for Android. Strokes are drawn with AndroidX Ink, the UI is plain Views, and it asks for no permissions at all. The release APK is 5.9 MiB and cold-starts in about 0.65 s on my test tablet. A notebook can be an infinite canvas or a stack of scrolling pages. You can export to PDF or PNG, or back up to an Obsidian vault through SAF. The UI is Indonesian only.
 
-Signed APKs are on the [Releases](https://github.com/Fadhil-Sabar/tulis/releases) page. To build, use JDK 17 and run `./gradlew assembleDebug`. Licensed under Apache-2.0.
+Grab a signed APK from [Releases](https://github.com/Fadhil-Sabar/tulis/releases), or build it with JDK 17 and `./gradlew assembleDebug`. Apache-2.0.
