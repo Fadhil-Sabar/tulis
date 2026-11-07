@@ -1,0 +1,11 @@
+Tulis adalah aplikasi catatan tulisan tangan yang ringan, dibangun di atas AndroidX Ink. Berjalan sepenuhnya offline dan tidak meminta izin apa pun.
+
+<ul>
+<li>Kanvas tak hingga atau halaman bergulir vertikal (potret atau lanskap) dengan peta mini</li>
+<li>Pena, spidol, stabilo, dan penghapus dengan ketebalan yang bisa diatur, urungkan dan ulangi lintas halaman</li>
+<li>Kertas polos, titik, kotak-kotak, dan bergaris</li>
+<li>Folder bersarang dan tempat sampah</li>
+<li>Ekspor PDF (vektor) dan PNG</li>
+<li>Cadangan ke folder Obsidian vault: arsip .tulis, publikasi Markdown dan PNG, pulihkan, dan penyelesaian konflik</li>
+<li>Tata letak ponsel dan tablet</li>
+</ul>

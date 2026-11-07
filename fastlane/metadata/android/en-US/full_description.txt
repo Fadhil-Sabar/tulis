@@ -1,0 +1,13 @@
+Tulis is a lightweight handwriting notes app built on AndroidX Ink. It works fully offline and asks for no permissions.
+
+<ul>
+<li>Infinite canvas or vertically scrolling pages (portrait or landscape) with a minimap</li>
+<li>Pen, marker, highlighter and eraser with adjustable thickness, global undo and redo</li>
+<li>Plain, dotted, grid and lined paper</li>
+<li>Nested folders and a trash</li>
+<li>Export to PDF (vector) and PNG</li>
+<li>Backup to an Obsidian vault folder: .tulis archives, Markdown and PNG publishing, restore and conflict resolution</li>
+<li>Phone and tablet layouts</li>
+</ul>
+
+The interface is in Indonesian.
