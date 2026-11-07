@@ -21,7 +21,7 @@ enum class ExportFormat { PDF, PNG }
 
 class ExportOptions(
     val format: ExportFormat,
-    val allPages: Boolean,
+    val pages: List<Int>,
     val withPaper: Boolean,
     val pxPerUnit: Float = 2f
 )

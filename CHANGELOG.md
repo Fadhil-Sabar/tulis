@@ -9,6 +9,8 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan
 - Warna pena, spidol, dan stabilo diingat di seluruh aplikasi
 
 ### Diubah
+- Pulihkan dari vault: pilih beberapa notebook sekaligus, hanya daftar yang bergulir; notebook yang berbeda dari perangkat disimpan sebagai salinan dan pengguna diberi tahu
+- Dialog ekspor: pilih halaman mana saja dengan pratinjau; PNG beberapa halaman disimpan satu file per halaman ke folder pilihan
 - Stabilo kini digambar di bawah tulisan, termasuk di thumbnail dan hasil ekspor
 
 ## [0.1.0] - 2026-11-07

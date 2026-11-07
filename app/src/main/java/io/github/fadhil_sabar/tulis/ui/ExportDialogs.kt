@@ -3,8 +3,12 @@ package io.github.fadhil_sabar.tulis.ui
 import android.app.Activity
 import android.app.AlertDialog
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import io.github.fadhil_sabar.tulis.export.ExportFormat
 import io.github.fadhil_sabar.tulis.export.ExportOptions
@@ -27,10 +31,17 @@ private fun dialogTitle(activity: Activity, text: String): TextView = TextView(a
     typeface = Fonts.hand(context, bold = true)
 }
 
+private fun fieldLabel(activity: Activity, text: String): TextView = TextView(activity).apply {
+    this.text = text
+    setTextColor(Palette.INK_SOFT)
+    textSize = 15f
+    typeface = Fonts.ui(context)
+}
+
 private fun showSketchDialog(activity: Activity, view: LinearLayout, cancelable: Boolean): AlertDialog {
     val maxW = dialogDp(activity, 420f)
     return AlertDialog.Builder(activity)
-        .setView(view)
+        .setView(ScrollView(activity).apply { addView(view) })
         .setCancelable(cancelable)
         .show().apply {
             window?.setBackgroundDrawableResource(android.R.color.transparent)
@@ -59,10 +70,21 @@ private fun actionButton(activity: Activity, label: String, primary: Boolean, on
         setOnClickListener { onClick() }
     }
 
-fun showExportDialog(activity: Activity, paged: Boolean, onConfirm: (ExportOptions) -> Unit) {
+fun showExportDialog(
+    activity: Activity,
+    paged: Boolean,
+    pageCount: Int,
+    currentPage: Int,
+    landscape: Boolean,
+    loadThumb: (Int, ImageView, TextView) -> Unit,
+    onConfirm: (ExportOptions) -> Unit
+) {
     var format = ExportFormat.PDF
-    var allPages = false
     var withPaper = true
+    val picked = sortedSetOf<Int>()
+    if (paged && currentPage in 0 until pageCount) picked.add(currentPage)
+    var dialogRef: AlertDialog? = null
+    lateinit var confirmBtn: TextView
 
     val root = sketchDialogRoot(activity)
     root.addView(dialogTitle(activity, "Ekspor"), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -71,12 +93,7 @@ fun showExportDialog(activity: Activity, paged: Boolean, onConfirm: (ExportOptio
 
     fun addRow(label: String, options: List<String>, selected: () -> Int, onSelect: (Int) -> Unit): LinearLayout {
         val block = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
-        block.addView(TextView(activity).apply {
-            text = label
-            setTextColor(Palette.INK_SOFT)
-            textSize = 15f
-            typeface = Fonts.ui(context)
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+        block.addView(fieldLabel(activity, label), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             bottomMargin = dialogDp(activity, 6f)
         })
         val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
@@ -116,13 +133,22 @@ fun showExportDialog(activity: Activity, paged: Boolean, onConfirm: (ExportOptio
         return block
     }
 
-    var rangeBlock: LinearLayout? = null
     fun refreshAll(vararg blocks: LinearLayout?) {
         for (b in blocks) {
             @Suppress("UNCHECKED_CAST")
             (b?.tag as? () -> Unit)?.invoke()
         }
-        rangeBlock?.visibility = if (paged && format == ExportFormat.PDF) android.view.View.VISIBLE else android.view.View.GONE
+    }
+
+    fun updateConfirm() {
+        confirmBtn.text = if (paged) "Ekspor (${picked.size} halaman)" else "Ekspor"
+        confirmBtn.alpha = if (paged && picked.isEmpty()) 0.5f else 1f
+    }
+
+    fun confirm() {
+        if (paged && picked.isEmpty()) return
+        dialogRef?.dismiss()
+        onConfirm(ExportOptions(format, if (paged) picked.toList() else emptyList(), withPaper))
     }
 
     lateinit var formatBlock: LinearLayout
@@ -133,40 +159,137 @@ fun showExportDialog(activity: Activity, paged: Boolean, onConfirm: (ExportOptio
 
     formatBlock = addRow("Format", listOf("PDF", "PNG"), { format.ordinal }, {
         format = ExportFormat.values()[it]
-        refreshAll(formatBlock, rangeBlock, paperBlock)
+        refreshAll(formatBlock, paperBlock)
     })
     root.addView(formatBlock, gap)
 
     if (paged) {
-        val rb = addRow("Halaman", listOf("Halaman ini", "Semua halaman"), { if (allPages) 1 else 0 }, {
-            allPages = it == 1
-            refreshAll(formatBlock, rangeBlock, paperBlock)
+        val cols = if (landscape) 2 else 3
+        val cardW = if (landscape) 136f else 96f
+        val cardH = if (landscape) 96f else 136f
+        val refreshers = ArrayList<() -> Unit>()
+
+        fun pageCard(i: Int): LinearLayout {
+            val bg = SketchDrawable(fill = Palette.SHEET, stroke = Palette.INK_SOFT, strokeWidthDp = 1.6f, shadowOffsetDp = 0f, cornerDp = 4f)
+            val frame = FrameLayout(activity).apply { background = bg }
+            val thumb = ImageView(activity).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+            val number = TextView(activity).apply {
+                text = "${i + 1}"
+                setTextColor(0x552B2724)
+                textSize = 32f
+                typeface = Fonts.hand(context, bold = true)
+                gravity = Gravity.CENTER
+            }
+            val mark = TextView(activity).apply {
+                text = "✓"
+                setTextColor(Palette.PAPER)
+                textSize = 14f
+                typeface = Fonts.ui(context)
+                gravity = Gravity.CENTER
+                background = SketchDrawable(fill = Palette.INK, stroke = Palette.INK, round = true)
+                visibility = View.GONE
+            }
+            val caption = TextView(activity).apply {
+                text = "${i + 1}"
+                textSize = 13f
+                typeface = Fonts.ui(context)
+                gravity = Gravity.CENTER
+            }
+            val inset = dialogDp(activity, 4f)
+            val markSize = dialogDp(activity, 22f)
+            frame.addView(thumb, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT).apply {
+                setMargins(inset, inset, inset, inset)
+            })
+            frame.addView(number, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER))
+            frame.addView(mark, FrameLayout.LayoutParams(markSize, markSize, Gravity.TOP or Gravity.END).apply {
+                setMargins(0, dialogDp(activity, 2f), dialogDp(activity, 2f), 0)
+            })
+            val card = LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                isClickable = true
+                isFocusable = true
+                addView(frame, LinearLayout.LayoutParams(dialogDp(activity, cardW), dialogDp(activity, cardH)))
+                addView(caption, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dialogDp(activity, 22f)))
+            }
+            fun refresh() {
+                val on = i in picked
+                bg.applyFill(if (on) Palette.YELLOW else Palette.SHEET)
+                bg.applyStroke(if (on) Palette.INK else Palette.INK_SOFT)
+                bg.strokeWidthPx = (if (on) 3f else 1.6f) * activity.resources.displayMetrics.density
+                mark.visibility = if (on) View.VISIBLE else View.GONE
+                caption.setTextColor(if (on) Palette.INK else Palette.INK_SOFT)
+            }
+            refreshers.add { refresh() }
+            refresh()
+            card.setOnClickListener {
+                if (!picked.remove(i)) picked.add(i)
+                refresh()
+                updateConfirm()
+            }
+            loadThumb(i, thumb, number)
+            return card
+        }
+
+        val pagesBlock = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        pagesBlock.addView(fieldLabel(activity, "Halaman"), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dialogDp(activity, 6f)
         })
-        rangeBlock = rb
-        root.addView(rb, gap)
+        val chipRow = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
+        chipRow.addView(actionButton(activity, "Semua", false) {
+            picked.clear()
+            picked.addAll(0 until pageCount)
+            refreshers.forEach { it() }
+            updateConfirm()
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dialogDp(activity, 36f)).apply {
+            marginEnd = dialogDp(activity, 8f)
+        })
+        chipRow.addView(actionButton(activity, "Kosongkan", false) {
+            picked.clear()
+            refreshers.forEach { it() }
+            updateConfirm()
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dialogDp(activity, 36f)))
+        pagesBlock.addView(chipRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dialogDp(activity, 8f)
+        })
+
+        val grid = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        for (rowStart in 0 until pageCount step cols) {
+            val rowView = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
+            for (i in rowStart until minOf(rowStart + cols, pageCount)) {
+                rowView.addView(pageCard(i), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            }
+            grid.addView(rowView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                bottomMargin = dialogDp(activity, 8f)
+            })
+        }
+        val rowCount = (pageCount + cols - 1) / cols
+        val rowH = dialogDp(activity, cardH + 22f + 8f)
+        val maxH = activity.resources.displayMetrics.heightPixels / 2
+        val scroll = ScrollView(activity).apply { addView(grid) }
+        pagesBlock.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.min(rowCount * rowH, maxH)))
+        root.addView(pagesBlock, gap)
     }
 
     paperBlock = addRow("Latar", listOf("Dengan kertas", "Putih polos"), { if (withPaper) 0 else 1 }, {
         withPaper = it == 0
-        refreshAll(formatBlock, rangeBlock, paperBlock)
+        refreshAll(formatBlock, paperBlock)
     })
     root.addView(paperBlock, gap)
-    refreshAll(formatBlock, rangeBlock, paperBlock)
+    refreshAll(formatBlock, paperBlock)
 
     val btnRow = LinearLayout(activity).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.END
     }
-    var dialogRef: AlertDialog? = null
     btnRow.addView(actionButton(activity, "Batal", false) { dialogRef?.dismiss() },
         LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dialogDp(activity, 44f)).apply {
             marginEnd = dialogDp(activity, 10f)
         })
-    btnRow.addView(actionButton(activity, "Ekspor", true) {
-        dialogRef?.dismiss()
-        onConfirm(ExportOptions(format, paged && format == ExportFormat.PDF && allPages, withPaper))
-    }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dialogDp(activity, 44f)))
+    confirmBtn = actionButton(activity, "Ekspor", true) { confirm() }
+    btnRow.addView(confirmBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dialogDp(activity, 44f)))
     root.addView(btnRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+    updateConfirm()
 
     dialogRef = showSketchDialog(activity, root, true)
 }

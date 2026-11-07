@@ -710,7 +710,7 @@ class VaultSync private constructor(appContext: Context) {
         try {
             val job = ExportJob(
                 id, meta.mode, meta.orientation, meta.paperStyle, meta.paperSpacing,
-                ExportOptions(ExportFormat.PNG, false, true, 1f), listOf(index), emptyMap(),
+                ExportOptions(ExportFormat.PNG, emptyList(), true, 1f), listOf(index), emptyMap(),
                 if (meta.mode == NoteMode.INFINITE) repo.loadPageSync(id, 0) else null
             )
             try {

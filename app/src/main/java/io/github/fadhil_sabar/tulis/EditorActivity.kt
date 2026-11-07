@@ -64,6 +64,7 @@ class EditorActivity : Activity() {
     companion object {
         const val EXTRA_ID = "id"
         private const val REQ_EXPORT = 7001
+        private const val REQ_EXPORT_DIR = 7002
     }
 
     private lateinit var repo: NotebookRepository
@@ -1092,7 +1093,16 @@ class EditorActivity : Activity() {
             isClickable = true
             isFocusable = true
             contentDescription = "Ekspor"
-            setOnClickListener { showExportDialog(this@EditorActivity, m.mode == NoteMode.PAGED) { startExport(it) } }
+            setOnClickListener {
+                showExportDialog(
+                    this@EditorActivity,
+                    m.mode == NoteMode.PAGED,
+                    m.pageCount,
+                    currentPageIndex,
+                    m.orientation == PageOrientation.LANDSCAPE,
+                    { index, imageView, placeholder -> loadExportThumb(index, imageView, placeholder) }
+                ) { startExport(it) }
+            }
         }
         val icon = IconView(this).apply {
             showSelection = false
@@ -1708,7 +1718,26 @@ class EditorActivity : Activity() {
         }
     }
 
-    private fun loadPageThumbnailAsync(index: Int, imageView: ImageView, placeholder: TextView) {
+    private fun loadExportThumb(index: Int, imageView: ImageView, placeholder: TextView) {
+        loadPageThumbnailAsync(index, imageView, placeholder) {
+            mainHandler.post {
+                if (isFinishing || isDestroyed) return@post
+                val resident = pageStack?.get(index)
+                if (resident != null) {
+                    ensurePageThumb(index, resident)
+                    loadPageThumbnailAsync(index, imageView, placeholder)
+                } else {
+                    repo.loadPage(notebookId, index) { page ->
+                        if (isFinishing || isDestroyed) return@loadPage
+                        ensurePageThumb(index, page)
+                        loadPageThumbnailAsync(index, imageView, placeholder)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun loadPageThumbnailAsync(index: Int, imageView: ImageView, placeholder: TextView, onMissing: (() -> Unit)? = null) {
         val cacheKey = "${notebookId}_$index"
         val cached = thumbMemoryCache.get(cacheKey)
         if (cached != null) {
@@ -1723,7 +1752,10 @@ class EditorActivity : Activity() {
 
         thumbExecutor.execute {
             val file = repo.pageThumbFile(notebookId, index)
-            if (!file.exists()) return@execute
+            if (!file.exists()) {
+                onMissing?.invoke()
+                return@execute
+            }
 
             val boundsOpts = android.graphics.BitmapFactory.Options().apply {
                 inJustDecodeBounds = true
@@ -3611,10 +3643,21 @@ class EditorActivity : Activity() {
 
     private fun startExport(opts: ExportOptions) {
         val m = meta ?: return
+        if (m.mode == NoteMode.PAGED && opts.pages.isEmpty()) return
         pendingExport = opts
         val safeTitle = m.title.replace(Regex("[/\\\\:*?\"<>|]"), "_").trim().ifEmpty { "Tulis" }
         val isPdf = opts.format == io.github.fadhil_sabar.tulis.export.ExportFormat.PDF
-        val suffix = if (!isPdf && m.mode == NoteMode.PAGED) "_hal${currentPageIndex + 1}" else ""
+        if (!isPdf && m.mode == NoteMode.PAGED && opts.pages.size > 1) {
+            try {
+                @Suppress("DEPRECATION")
+                startActivityForResult(android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_EXPORT_DIR)
+            } catch (_: Exception) {
+                pendingExport = null
+                Toast.makeText(this, "Tidak ada aplikasi penyimpanan file", Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+        val suffix = if (!isPdf && m.mode == NoteMode.PAGED) "_hal${opts.pages.first() + 1}" else ""
         val intent = android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(android.content.Intent.CATEGORY_OPENABLE)
             type = if (isPdf) "application/pdf" else "image/png"
@@ -3632,31 +3675,95 @@ class EditorActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQ_EXPORT) return
+        if (requestCode != REQ_EXPORT && requestCode != REQ_EXPORT_DIR) return
         val opts = pendingExport
         pendingExport = null
         val uri = data?.data
         if (resultCode != RESULT_OK || uri == null || opts == null) return
-        runExport(uri, opts)
+        if (requestCode == REQ_EXPORT_DIR) runExportPngDir(uri, opts) else runExport(uri, opts)
+    }
+
+    private fun exportSnapshots(m: NotebookMeta): Pair<Map<Int, PageContent>, PageContent?>? {
+        if (m.mode != NoteMode.PAGED) return emptyMap<Int, PageContent>() to canvasView.getPage()?.snapshot()
+        val s = pageStack ?: return null
+        val snapshots = HashMap<Int, PageContent>()
+        for (i in s.residentIndices()) {
+            s.get(i)?.let { snapshots[i] = it.snapshot() }
+        }
+        return snapshots to null
+    }
+
+    private fun runExportPngDir(treeUri: android.net.Uri, opts: ExportOptions) {
+        val m = meta ?: return
+        flushAutosave(immediateThumb = false)
+        val (snapshots, _) = exportSnapshots(m) ?: return
+        val indices = opts.pages.distinct().sorted()
+        val safeTitle = m.title.replace(Regex("[/\\\\:*?\"<>|]"), "_").trim().ifEmpty { "Tulis" }
+        val parentUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(
+            treeUri, android.provider.DocumentsContract.getTreeDocumentId(treeUri)
+        )
+        val cancel = java.util.concurrent.atomic.AtomicBoolean(false)
+        exportCancel = cancel
+        val progressDialog = ExportProgressDialog(this) { cancel.set(true) }
+        val alive = { !isFinishing && !isDestroyed }
+
+        repo.afterPending {
+            Thread {
+                val created = ArrayList<android.net.Uri>()
+                var error: String? = null
+                try {
+                    for ((n, idx) in indices.withIndex()) {
+                        if (cancel.get()) throw io.github.fadhil_sabar.tulis.export.ExportCancelled()
+                        mainHandler.post { if (alive()) progressDialog.update("Halaman ${n + 1} dari ${indices.size}") }
+                        val docUri = android.provider.DocumentsContract.createDocument(
+                            contentResolver, parentUri, "image/png", "${safeTitle}_hal${idx + 1}.png"
+                        ) ?: throw java.io.IOException("Tidak bisa membuat file")
+                        created.add(docUri)
+                        val job = ExportJob(
+                            notebookId, m.mode, m.orientation, m.paperStyle, m.paperSpacing,
+                            ExportOptions(io.github.fadhil_sabar.tulis.export.ExportFormat.PNG, listOf(idx), opts.withPaper),
+                            listOf(idx), snapshots, null
+                        )
+                        val out = contentResolver.openOutputStream(docUri, "w") ?: throw java.io.IOException("Tidak bisa menulis file")
+                        out.use {
+                            Exporter.run(job, it, cancel, { p -> repo.loadPageSync(notebookId, p) }) { _, _ -> }
+                        }
+                    }
+                } catch (e: io.github.fadhil_sabar.tulis.export.ExportCancelled) {
+                    error = ""
+                } catch (e: Throwable) {
+                    error = e.message ?: "Ekspor gagal"
+                }
+                val err = error
+                if (err != null) {
+                    for (doc in created) {
+                        try {
+                            android.provider.DocumentsContract.deleteDocument(contentResolver, doc)
+                        } catch (_: Throwable) {
+                        }
+                    }
+                }
+                mainHandler.post {
+                    exportCancel = null
+                    if (!alive()) return@post
+                    progressDialog.dismiss()
+                    val msg = when {
+                        err == null -> "Ekspor selesai: ${created.size} file"
+                        err.isEmpty() -> "Ekspor dibatalkan"
+                        else -> "Ekspor gagal: $err"
+                    }
+                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                }
+            }.start()
+        }
     }
 
     private fun runExport(uri: android.net.Uri, opts: ExportOptions) {
         val m = meta ?: return
         flushAutosave(immediateThumb = false)
 
-        val snapshots = HashMap<Int, PageContent>()
-        val indices: List<Int>
-        var infinitePage: PageContent? = null
-        if (m.mode == NoteMode.PAGED) {
-            val s = pageStack ?: return
-            for (i in s.residentIndices()) {
-                s.get(i)?.let { snapshots[i] = it.snapshot() }
-            }
-            indices = if (opts.allPages) (0 until m.pageCount).toList() else listOf(currentPageIndex)
-        } else {
-            infinitePage = canvasView.getPage()?.snapshot()
-            indices = listOf(0)
-        }
+        val (snapshots, infinitePage) = exportSnapshots(m) ?: return
+        val indices = if (m.mode == NoteMode.PAGED) opts.pages.distinct().sorted() else listOf(0)
 
         val job = ExportJob(
             notebookId, m.mode, m.orientation, m.paperStyle, m.paperSpacing,
