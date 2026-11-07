@@ -178,6 +178,9 @@ class EditorActivity : Activity() {
         penWidth = prefs.getFloat("width_pen", 4f).coerceIn(1f, 16f)
         markerWidth = prefs.getFloat("width_marker", 8f).coerceIn(2f, 28f)
         highlighterWidth = prefs.getFloat("width_highlighter", 20f).coerceIn(6f, 48f)
+        penColor = prefs.getInt("color_pen", Palette.INK)
+        markerColor = prefs.getInt("color_marker", Palette.INK)
+        highlighterColor = prefs.getInt("color_highlighter", Palette.YELLOW)
         isPanelCollapsed = prefs.getBoolean("panel_collapsed", false)
         isRailHidden = prefs.getBoolean("rail_hidden", false)
         tabletToolDock = try {
@@ -320,11 +323,14 @@ class EditorActivity : Activity() {
     }
 
     private fun setColorForTool(t: Tool, c: Int) {
-        when (t) {
-            Tool.PEN -> penColor = c
-            Tool.MARKER -> markerColor = c
-            Tool.HIGHLIGHTER -> highlighterColor = c
-            else -> {}
+        val key = when (t) {
+            Tool.PEN -> { penColor = c; "color_pen" }
+            Tool.MARKER -> { markerColor = c; "color_marker" }
+            Tool.HIGHLIGHTER -> { highlighterColor = c; "color_highlighter" }
+            else -> null
+        }
+        if (key != null) {
+            getSharedPreferences("tulis_prefs", MODE_PRIVATE).edit().putInt(key, c).apply()
         }
     }
 

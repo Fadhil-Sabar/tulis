@@ -39,13 +39,16 @@ import io.github.fadhil_sabar.tulis.model.Folder
 import io.github.fadhil_sabar.tulis.model.NoteMode
 import io.github.fadhil_sabar.tulis.model.NotebookMeta
 import io.github.fadhil_sabar.tulis.model.PageOrientation
+import io.github.fadhil_sabar.tulis.model.PaperStyle
 import io.github.fadhil_sabar.tulis.storage.NotebookRepository
 import io.github.fadhil_sabar.tulis.storage.VaultSync
 import io.github.fadhil_sabar.tulis.ui.Fonts
 import io.github.fadhil_sabar.tulis.ui.Icon
 import io.github.fadhil_sabar.tulis.ui.IconView
 import io.github.fadhil_sabar.tulis.ui.Palette
+import io.github.fadhil_sabar.tulis.ui.PaperPreviewView
 import io.github.fadhil_sabar.tulis.ui.SketchDrawable
+import io.github.fadhil_sabar.tulis.ui.SketchSlider
 import io.github.fadhil_sabar.tulis.ui.UiPrefs
 import io.github.fadhil_sabar.tulis.ui.UndoBar
 import java.io.File
@@ -930,15 +933,28 @@ class MainActivity : Activity() {
         } catch (t: Throwable) {
             NoteMode.INFINITE
         }
-        var selectedOrientation = PageOrientation.PORTRAIT
+        var selectedOrientation = try {
+            PageOrientation.valueOf(prefs.getString("last_orientation", null) ?: PageOrientation.PORTRAIT.name)
+        } catch (t: Throwable) {
+            PageOrientation.PORTRAIT
+        }
+        var selectedStyle: PaperStyle? = prefs.getString("last_paper_style", null)
+            ?.let { saved -> PaperStyle.values().firstOrNull { it.name == saved } }
+        var selectedSpacing = prefs.getFloat("last_paper_spacing", 28f).coerceIn(12f, 120f)
+        fun effectiveStyle(): PaperStyle =
+            selectedStyle ?: if (selectedMode == NoteMode.INFINITE) PaperStyle.DOTS else PaperStyle.PLAIN
+        var refreshPaper: () -> Unit = {}
 
-        val sheetContent = LinearLayout(this).apply {
+        val sheetRoot = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val padH = dp(24f)
             val padT = dp(14f)
             val padB = dp(32f)
             setPadding(padH, padT, padH, padB)
             background = SheetBackgroundDrawable(Palette.PAPER, Palette.INK)
+        }
+        val sheetContent = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
         }
 
         val handleView = WavyHandleView(this).apply {
@@ -950,7 +966,14 @@ class MainActivity : Activity() {
                 bottomMargin = dp(10f)
             }
         }
-        sheetContent.addView(handleView)
+        sheetRoot.addView(handleView)
+        sheetRoot.addView(
+            ScrollView(this).apply {
+                isVerticalScrollBarEnabled = false
+                addView(sheetContent)
+            },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        )
 
         val titleView = TextView(this).apply {
             text = "Notebook baru"
@@ -1167,6 +1190,7 @@ class MainActivity : Activity() {
             val oriVisibility = if (isInf) View.GONE else View.VISIBLE
             labelOrientation.visibility = oriVisibility
             orientationChipsRow.visibility = oriVisibility
+            refreshPaper()
         }
 
         cardInfinite = LinearLayout(this).apply {
@@ -1279,6 +1303,131 @@ class MainActivity : Activity() {
         sheetContent.addView(labelOrientation)
         sheetContent.addView(orientationChipsRow)
 
+        val labelPaper = TextView(this).apply {
+            text = "Kertas"
+            textSize = 17f
+            typeface = Fonts.ui(context)
+            setTextColor(Palette.INK_SOFT)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dp(16f)
+                bottomMargin = dp(8f)
+            }
+        }
+        sheetContent.addView(labelPaper)
+
+        val paperStyles = listOf(
+            PaperStyle.PLAIN to "Polos",
+            PaperStyle.DOTS to "Titik",
+            PaperStyle.GRID to "Kotak",
+            PaperStyle.LINES to "Garis"
+        )
+        val paperChipsRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val paperChips = ArrayList<LinearLayout>()
+        for ((idx, item) in paperStyles.withIndex()) {
+            val chip = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(44f)
+                setPadding(dp(12f), dp(4f), dp(16f), dp(4f))
+                contentDescription = "Gaya kertas: ${item.second}"
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    selectedStyle = item.first
+                    refreshPaper()
+                }
+            }
+            chip.addView(
+                PaperPreviewView(this).apply {
+                    style = item.first
+                    isClickable = false
+                    isFocusable = false
+                    background = SketchDrawable(fill = Palette.PAPER, stroke = Palette.INK_SOFT, strokeWidthDp = 1f, cornerDp = 4f)
+                },
+                LinearLayout.LayoutParams(dp(28f), dp(28f)).apply { marginEnd = dp(8f) }
+            )
+            chip.addView(TextView(this).apply {
+                text = item.second
+                textSize = 19f
+                typeface = Fonts.ui(context)
+                setTextColor(Palette.INK)
+            })
+            paperChips.add(chip)
+            paperChipsRow.addView(
+                chip,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { if (idx < paperStyles.lastIndex) rightMargin = dp(10f) }
+            )
+        }
+        sheetContent.addView(
+            HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+                addView(paperChipsRow)
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        val labelSpacing = TextView(this).apply {
+            text = "Jarak"
+            textSize = 17f
+            typeface = Fonts.ui(context)
+            setTextColor(Palette.INK_SOFT)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dp(16f)
+                bottomMargin = dp(4f)
+            }
+        }
+        sheetContent.addView(labelSpacing)
+        val spacingSlider = SketchSlider(
+            context = this,
+            min = 12f,
+            max = 120f,
+            step = 4f,
+            initial = selectedSpacing,
+            description = "Jarak kertas",
+            showButtons = true,
+            onChange = { selectedSpacing = it },
+            onCommit = { selectedSpacing = it }
+        )
+        sheetContent.addView(
+            spacingSlider,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        refreshPaper = {
+            val cur = effectiveStyle()
+            for ((idx, item) in paperStyles.withIndex()) {
+                val sel = item.first == cur
+                paperChips[idx].isSelected = sel
+                paperChips[idx].background = SketchDrawable(
+                    seed = 320L + idx,
+                    fill = if (sel) Palette.YELLOW else 0,
+                    stroke = Palette.INK,
+                    strokeWidthDp = 2.5f,
+                    shadowOffsetDp = 0f,
+                    cornerDp = 14f,
+                    variant = idx % 4
+                )
+            }
+            val vis = if (cur == PaperStyle.PLAIN) View.GONE else View.VISIBLE
+            labelSpacing.visibility = vis
+            spacingSlider.visibility = vis
+        }
+
         val buttonsRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
@@ -1341,9 +1490,15 @@ class MainActivity : Activity() {
             }
             setOnClickListener {
                 val inputTitle = titleInput.text.toString().trim()
-                prefs.edit().putString("last_canvas_mode", selectedMode.name).apply()
+                val style = effectiveStyle()
+                prefs.edit()
+                    .putString("last_canvas_mode", selectedMode.name)
+                    .putString("last_orientation", selectedOrientation.name)
+                    .putString("last_paper_style", style.name)
+                    .putFloat("last_paper_spacing", selectedSpacing)
+                    .apply()
                 val effectiveOrientation = if (selectedMode == NoteMode.PAGED) selectedOrientation else PageOrientation.PORTRAIT
-                val created = repo.create(inputTitle, selectedMode, effectiveOrientation, currentFolderId)
+                val created = repo.create(inputTitle, selectedMode, effectiveOrientation, currentFolderId, style, selectedSpacing)
                 dialog.dismiss()
                 openEditor(created.id)
             }
@@ -1351,7 +1506,7 @@ class MainActivity : Activity() {
 
         buttonsRow.addView(btnCancel)
         buttonsRow.addView(btnCreate)
-        sheetContent.addView(buttonsRow)
+        sheetRoot.addView(buttonsRow)
 
         val maxSheetWidthPx = dp(560f)
         val container = FrameLayout(this).apply {
@@ -1366,17 +1521,17 @@ class MainActivity : Activity() {
                 gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
                 width = FrameLayout.LayoutParams.MATCH_PARENT
             }
-            sheetContent.layoutParams = lp
-            addView(sheetContent)
+            sheetRoot.layoutParams = lp
+            addView(sheetRoot)
         }
 
-        sheetContent.post {
-            val actualW = sheetContent.width
+        sheetRoot.post {
+            val actualW = sheetRoot.width
             if (actualW > maxSheetWidthPx) {
-                val p = sheetContent.layoutParams as FrameLayout.LayoutParams
+                val p = sheetRoot.layoutParams as FrameLayout.LayoutParams
                 p.width = maxSheetWidthPx
                 p.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                sheetContent.layoutParams = p
+                sheetRoot.layoutParams = p
             }
         }
 

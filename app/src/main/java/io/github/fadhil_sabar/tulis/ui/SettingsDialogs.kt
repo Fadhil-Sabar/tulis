@@ -241,7 +241,7 @@ fun showUiSettingsDialog(activity: Activity, onApplied: () -> Unit) {
         }
 }
 
-private class PaperPreviewView(context: Context) : View(context) {
+internal class PaperPreviewView(context: Context) : View(context) {
     var style: PaperStyle = PaperStyle.PLAIN
         set(value) {
             field = value

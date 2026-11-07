@@ -4,6 +4,10 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan
 
 ## [Unreleased]
 
+### Ditambahkan
+- Dialog Notebook baru memiliki pilihan gaya kertas dan jarak; nilai awalnya mengikuti notebook terakhir yang dibuat
+- Warna pena, spidol, dan stabilo diingat di seluruh aplikasi
+
 ### Diubah
 - Stabilo kini digambar di bawah tulisan, termasuk di thumbnail dan hasil ekspor
 

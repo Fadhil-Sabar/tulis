@@ -354,10 +354,17 @@ class NotebookRepository(private val context: Context) {
         return "Catatan " + SimpleDateFormat("d MMM HH.mm", Locale("id", "ID")).format(Date())
     }
 
-    fun create(title: String, mode: NoteMode, orientation: PageOrientation = PageOrientation.PORTRAIT, folderId: String? = null): NotebookMeta {
+    fun create(
+        title: String,
+        mode: NoteMode,
+        orientation: PageOrientation = PageOrientation.PORTRAIT,
+        folderId: String? = null,
+        paperStyle: PaperStyle? = null,
+        paperSpacing: Float = 28f
+    ): NotebookMeta {
         val finalTitle = if (title.isBlank()) defaultTitle() else title
         val id = UUID.randomUUID().toString()
-        val defaultPaperStyle = if (mode == NoteMode.INFINITE) PaperStyle.DOTS else PaperStyle.PLAIN
+        val defaultPaperStyle = paperStyle ?: if (mode == NoteMode.INFINITE) PaperStyle.DOTS else PaperStyle.PLAIN
         val meta = NotebookMeta(
             id = id,
             title = finalTitle,
@@ -369,7 +376,7 @@ class NotebookRepository(private val context: Context) {
             vpTy = 0f,
             lastPage = 0,
             paperStyle = defaultPaperStyle,
-            paperSpacing = 28f,
+            paperSpacing = paperSpacing.coerceIn(12f, 120f),
             orientation = orientation,
             folderId = folderId
         )
