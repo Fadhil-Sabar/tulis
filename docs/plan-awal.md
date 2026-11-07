@@ -1,3 +1,5 @@
+> Dokumen historis: kondisi terkini ada di AGENTS.md.
+
 # Tulis — Rencana Eksekusi
 
 Aplikasi catatan tulisan tangan + teks untuk Android yang super ringan dan responsif,

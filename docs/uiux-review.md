@@ -1,6 +1,6 @@
 # Ulasan UI/UX Tulis (advisor, 4 Nov 2026)
 
-Dasar: screenshot perangkat (Beranda, sheet baru, editor infinite/halaman tablet), design-ref/*.dc.html, dan kode. Belum diuji dengan stylus asli.
+Dasar: screenshot perangkat (Beranda, sheet baru, editor infinite/halaman tablet), docs/design-ref/*.dc.html, dan kode. Belum diuji dengan stylus asli.
 
 ## Prioritas tinggi
 - **T1 Palm rejection & stylus.** `fingerDraws` default aktif dan tidak disimpan; tool type hanya dari pointer 0 (`NoteCanvasView.kt:402-403`); telapak lalu stylus memicu `switchToPinch` (`:428-431`); `FLAG_CANCELED` tidak diperiksa. Saran: nonaktifkan "jari menggambar" otomatis saat stylus terdeteksi (simpan di SharedPreferences), cek tool type di `ACTION_POINTER_DOWN`, batalkan goresan pada `FLAG_CANCELED`, opsional tolak `touchMajor` > ~40dp. Usaha: sedang.
