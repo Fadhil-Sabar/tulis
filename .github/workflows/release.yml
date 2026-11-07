@@ -16,7 +16,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Verifikasi tag cocok dengan versionName
         run: grep -q "versionName = \"${GITHUB_REF_NAME#v}\"" app/build.gradle.kts
       - name: Siapkan keystore
