@@ -1,0 +1,5 @@
+- Pilihan gaya kertas dan jarak di dialog Notebook baru
+- Warna pena, spidol, dan stabilo diingat
+- Pulihkan beberapa notebook sekaligus dari vault
+- Ekspor halaman pilihan dengan pratinjau
+- Stabilo digambar di bawah tulisan

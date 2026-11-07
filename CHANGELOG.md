@@ -4,6 +4,8 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-07
+
 ### Ditambahkan
 - Dialog Notebook baru memiliki pilihan gaya kertas dan jarak; nilai awalnya mengikuti notebook terakhir yang dibuat
 - Warna pena, spidol, dan stabilo diingat di seluruh aplikasi
@@ -26,5 +28,6 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan
 - Publikasi catatan sebagai `.md` dan PNG ke vault, ganti nama catatan, penyelesaian konflik
 - Pulihkan notebook dari vault dan hapus dari vault
 
-[Unreleased]: https://github.com/Fadhil-Sabar/tulis/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Fadhil-Sabar/tulis/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Fadhil-Sabar/tulis/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Fadhil-Sabar/tulis/releases/tag/v0.1.0

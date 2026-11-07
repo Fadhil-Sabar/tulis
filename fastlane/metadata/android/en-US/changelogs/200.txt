@@ -1,0 +1,5 @@
+- Paper style and spacing options in the New notebook dialog
+- Pen, marker, and highlighter colors are remembered
+- Restore several notebooks at once from the vault
+- Export selected pages with a preview
+- Highlighter is drawn under handwriting
