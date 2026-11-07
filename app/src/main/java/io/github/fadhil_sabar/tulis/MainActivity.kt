@@ -967,13 +967,23 @@ class MainActivity : Activity() {
             }
         }
         sheetRoot.addView(handleView)
+        val sheetScroll = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
+            addView(sheetContent)
+        }
         sheetRoot.addView(
-            ScrollView(this).apply {
-                isVerticalScrollBarEnabled = false
-                addView(sheetContent)
-            },
+            sheetScroll,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         )
+        val maxScrollH = resources.displayMetrics.heightPixels - dp(225f)
+        sheetContent.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
+            val target = if (bottom - top > maxScrollH) maxScrollH else ViewGroup.LayoutParams.WRAP_CONTENT
+            val lp = sheetScroll.layoutParams
+            if (lp.height != target) {
+                lp.height = target
+                sheetScroll.layoutParams = lp
+            }
+        }
 
         val titleView = TextView(this).apply {
             text = "Notebook baru"
