@@ -10,11 +10,14 @@ import androidx.ink.authoring.InProgressStrokesFinishedListener
 import androidx.ink.authoring.InProgressStrokesView
 import androidx.ink.brush.Brush
 import androidx.ink.brush.BrushFamily
+import androidx.ink.brush.InputToolType
 import androidx.ink.brush.StockBrushes
 import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
 import androidx.ink.storage.decode
 import androidx.ink.storage.encode
+import androidx.ink.strokes.MutableStrokeInputBatch
 import androidx.ink.strokes.Stroke
+import androidx.ink.strokes.StrokeInput
 import androidx.ink.strokes.StrokeInputBatch
 import io.github.fadhil_sabar.tulis.model.BrushKind
 import java.io.ByteArrayInputStream
@@ -126,6 +129,32 @@ object InkBridge {
                 Brush.createWithColorIntArgb(highlighterFamily, highColor, sizePx, 0.1f)
             }
         }
+    }
+
+    fun strokeFromPoints(
+        kind: BrushKind,
+        colorArgb: Int,
+        sizePx: Float,
+        pts: FloatArray,
+        pressure: Float
+    ): Stroke {
+        val batch = MutableStrokeInputBatch()
+        val p = pressure.coerceIn(0f, 1f)
+        var elapsed = 0L
+        var lastX = Float.NaN
+        var lastY = Float.NaN
+        var i = 0
+        while (i + 1 < pts.size) {
+            val x = pts[i]
+            val y = pts[i + 1]
+            i += 2
+            if (x == lastX && y == lastY) continue
+            batch.add(InputToolType.STYLUS, x, y, elapsed, StrokeInput.NO_STROKE_UNIT_LENGTH, p)
+            lastX = x
+            lastY = y
+            elapsed += 4L
+        }
+        return Stroke(brushFor(kind, colorArgb, sizePx), batch)
     }
 
     fun encodeInputs(item: StrokeItem): ByteArray {

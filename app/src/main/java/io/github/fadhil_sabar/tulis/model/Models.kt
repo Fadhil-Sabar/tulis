@@ -5,7 +5,7 @@ import io.github.fadhil_sabar.tulis.ink.StrokeItem
 
 enum class NoteMode { INFINITE, PAGED }
 enum class PaperStyle { PLAIN, DOTS, GRID, LINES }
-enum class Tool { PEN, MARKER, HIGHLIGHTER, ERASER, TEXT, PAN }
+enum class Tool { PEN, MARKER, HIGHLIGHTER, ERASER, TEXT, PAN, SHAPE, SELECT }
 enum class BrushKind { PEN, MARKER, HIGHLIGHTER }
 
 enum class PageOrientation { PORTRAIT, LANDSCAPE }
@@ -126,6 +126,93 @@ class PageContent {
         }
     }
 
+    private class TextMoveEntry(
+        val item: TextItem,
+        val oldX: Float,
+        val oldY: Float,
+        val newX: Float,
+        val newY: Float,
+        val hasSize: Boolean = false,
+        val oldSize: Float = 0f,
+        val oldWidth: Float = 0f,
+        val newSize: Float = 0f,
+        val newWidth: Float = 0f
+    )
+
+    private inner class RemoveItemsAction(
+        val strokeEntries: List<Pair<Int, StrokeItem>>,
+        val textEntries: List<Pair<Int, TextItem>>
+    ) : Action {
+        override fun undo() {
+            for (i in 0 until strokeEntries.size) {
+                val entry = strokeEntries[i]
+                strokes.add(entry.first.coerceIn(0, strokes.size), entry.second)
+            }
+            for (i in 0 until textEntries.size) {
+                val entry = textEntries[i]
+                texts.add(entry.first.coerceIn(0, texts.size), entry.second)
+            }
+        }
+
+        override fun redo() {
+            for (i in strokeEntries.indices.reversed()) {
+                val idx = strokeEntries[i].first
+                if (idx in 0 until strokes.size) {
+                    strokes.removeAt(idx)
+                }
+            }
+            for (i in textEntries.indices.reversed()) {
+                val idx = textEntries[i].first
+                if (idx in 0 until texts.size) {
+                    texts.removeAt(idx)
+                }
+            }
+        }
+    }
+
+    private inner class ReplaceItemsAction(
+        val strokePairs: List<Pair<StrokeItem, StrokeItem>>,
+        val textEntries: List<TextMoveEntry>
+    ) : Action {
+        override fun undo() {
+            for (i in 0 until strokePairs.size) {
+                val pair = strokePairs[i]
+                val idx = strokes.indexOf(pair.second)
+                if (idx >= 0) {
+                    strokes[idx] = pair.first
+                }
+            }
+            for (i in 0 until textEntries.size) {
+                val e = textEntries[i]
+                e.item.x = e.oldX
+                e.item.y = e.oldY
+                if (e.hasSize) {
+                    e.item.sizeWorld = e.oldSize
+                    e.item.widthWorld = e.oldWidth
+                }
+            }
+        }
+
+        override fun redo() {
+            for (i in 0 until strokePairs.size) {
+                val pair = strokePairs[i]
+                val idx = strokes.indexOf(pair.first)
+                if (idx >= 0) {
+                    strokes[idx] = pair.second
+                }
+            }
+            for (i in 0 until textEntries.size) {
+                val e = textEntries[i]
+                e.item.x = e.newX
+                e.item.y = e.newY
+                if (e.hasSize) {
+                    e.item.sizeWorld = e.newSize
+                    e.item.widthWorld = e.newWidth
+                }
+            }
+        }
+    }
+
     private fun pushAction(action: Action) {
         if (undoStack.size >= 100) {
             undoStack.removeAt(0)
@@ -169,6 +256,83 @@ class PageContent {
         if (old == newText) return
         t.text = newText
         pushAction(EditTextAction(t, old, newText))
+    }
+
+    fun removeItems(strokes: List<StrokeItem>, texts: List<TextItem>) {
+        val strokeEntries = ArrayList<Pair<Int, StrokeItem>>()
+        val seenStrokeIdx = HashSet<Int>()
+        for (i in 0 until strokes.size) {
+            val s = strokes[i]
+            val idx = this.strokes.indexOf(s)
+            if (idx >= 0 && seenStrokeIdx.add(idx)) {
+                strokeEntries.add(Pair(idx, s))
+            }
+        }
+        strokeEntries.sortBy { it.first }
+
+        val textEntries = ArrayList<Pair<Int, TextItem>>()
+        val seenTextIdx = HashSet<Int>()
+        for (i in 0 until texts.size) {
+            val t = texts[i]
+            val idx = this.texts.indexOf(t)
+            if (idx >= 0 && seenTextIdx.add(idx)) {
+                textEntries.add(Pair(idx, t))
+            }
+        }
+        textEntries.sortBy { it.first }
+
+        if (strokeEntries.isEmpty() && textEntries.isEmpty()) return
+        val action = RemoveItemsAction(strokeEntries, textEntries)
+        action.redo()
+        pushAction(action)
+    }
+
+    fun replaceItems(
+        oldStrokes: List<StrokeItem>,
+        newStrokes: List<StrokeItem>,
+        texts: List<TextItem>,
+        oldTextXY: List<FloatArray>,
+        newTextXY: List<FloatArray>
+    ) {
+        val strokePairs = ArrayList<Pair<StrokeItem, StrokeItem>>()
+        val strokeCount = minOf(oldStrokes.size, newStrokes.size)
+        for (i in 0 until strokeCount) {
+            val oldS = oldStrokes[i]
+            val newS = newStrokes[i]
+            if (oldS !== newS && this.strokes.indexOf(oldS) >= 0) {
+                strokePairs.add(Pair(oldS, newS))
+            }
+        }
+
+        val textEntries = ArrayList<TextMoveEntry>()
+        val textCount = minOf(texts.size, oldTextXY.size, newTextXY.size)
+        for (i in 0 until textCount) {
+            val oldXY = oldTextXY[i]
+            val newXY = newTextXY[i]
+            if (oldXY.size >= 2 && newXY.size >= 2) {
+                val hasSize = oldXY.size >= 4 && newXY.size >= 4
+                val changed = oldXY[0] != newXY[0] || oldXY[1] != newXY[1] ||
+                    (hasSize && (oldXY[2] != newXY[2] || oldXY[3] != newXY[3]))
+                if (changed) {
+                    textEntries.add(
+                        if (hasSize) {
+                            TextMoveEntry(
+                                texts[i],
+                                oldXY[0], oldXY[1], newXY[0], newXY[1],
+                                true, oldXY[2], oldXY[3], newXY[2], newXY[3]
+                            )
+                        } else {
+                            TextMoveEntry(texts[i], oldXY[0], oldXY[1], newXY[0], newXY[1])
+                        }
+                    )
+                }
+            }
+        }
+
+        if (strokePairs.isEmpty() && textEntries.isEmpty()) return
+        val action = ReplaceItemsAction(strokePairs, textEntries)
+        action.redo()
+        pushAction(action)
     }
 
     fun beginEraseGroup() {

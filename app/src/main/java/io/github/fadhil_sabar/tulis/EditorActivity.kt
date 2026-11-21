@@ -43,6 +43,7 @@ import io.github.fadhil_sabar.tulis.model.pageH
 import io.github.fadhil_sabar.tulis.model.pageW
 import io.github.fadhil_sabar.tulis.model.TextItem
 import io.github.fadhil_sabar.tulis.model.Tool
+import io.github.fadhil_sabar.tulis.shape.ShapeKind
 import io.github.fadhil_sabar.tulis.storage.NotebookRepository
 import io.github.fadhil_sabar.tulis.ui.ExportProgressDialog
 import io.github.fadhil_sabar.tulis.ui.Fonts
@@ -126,10 +127,14 @@ class EditorActivity : Activity() {
     private var penWidth = 4f
     private var markerWidth = 8f
     private var highlighterWidth = 20f
+    private var shapeWidth = 4f
 
     private var penColor = Palette.INK
     private var markerColor = Palette.INK
     private var highlighterColor = Palette.YELLOW
+    private var shapeColor = Palette.INK
+    private var snapShapes = true
+    private var tabletShapePicker: LinearLayout? = null
 
     private var currentPageIndex: Int = 0
     private var pageLoadToken: Int = 0
@@ -142,7 +147,11 @@ class EditorActivity : Activity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var isAutosavePending = false
     private val autosaveRunnable = Runnable {
-        flushAutosave(immediateThumb = false)
+        if (canvasView.hasPendingShape()) {
+            scheduleAutosave()
+        } else {
+            flushAutosave(immediateThumb = false)
+        }
     }
 
     private var optionsPopup: PopupWindow? = null
@@ -179,9 +188,12 @@ class EditorActivity : Activity() {
         penWidth = prefs.getFloat("width_pen", 4f).coerceIn(1f, 16f)
         markerWidth = prefs.getFloat("width_marker", 8f).coerceIn(2f, 28f)
         highlighterWidth = prefs.getFloat("width_highlighter", 20f).coerceIn(6f, 48f)
+        shapeWidth = prefs.getFloat("width_shape", 4f).coerceIn(1f, 16f)
         penColor = prefs.getInt("color_pen", Palette.INK)
         markerColor = prefs.getInt("color_marker", Palette.INK)
         highlighterColor = prefs.getInt("color_highlighter", Palette.YELLOW)
+        shapeColor = prefs.getInt("color_shape", Palette.INK)
+        snapShapes = prefs.getBoolean("snap_shapes", true)
         isPanelCollapsed = prefs.getBoolean("panel_collapsed", false)
         isRailHidden = prefs.getBoolean("rail_hidden", false)
         tabletToolDock = try {
@@ -199,6 +211,10 @@ class EditorActivity : Activity() {
         activeStrokeWidth = getWidthForTool(activeTool)
 
         buildUi(currentMeta)
+        canvasView.shapeKind = runCatching {
+            ShapeKind.valueOf(prefs.getString("shape_kind", ShapeKind.RECT.name) ?: ShapeKind.RECT.name)
+        }.getOrDefault(ShapeKind.RECT)
+        canvasView.snapShapes = snapShapes
         applyToolSelection(Tool.PEN)
 
         if (currentMeta.mode == NoteMode.INFINITE) {
@@ -287,7 +303,7 @@ class EditorActivity : Activity() {
 
     private fun widthRangeForTool(t: Tool): FloatArray {
         return when (t) {
-            Tool.PEN -> floatArrayOf(1f, 16f, 0.5f, 4f)
+            Tool.PEN, Tool.SHAPE -> floatArrayOf(1f, 16f, 0.5f, 4f)
             Tool.MARKER -> floatArrayOf(2f, 28f, 1f, 8f)
             Tool.HIGHLIGHTER -> floatArrayOf(6f, 48f, 1f, 20f)
             else -> floatArrayOf(1f, 16f, 0.5f, 4f)
@@ -297,6 +313,7 @@ class EditorActivity : Activity() {
     private fun getWidthForTool(t: Tool): Float {
         return when (t) {
             Tool.PEN -> penWidth
+            Tool.SHAPE -> shapeWidth
             Tool.MARKER -> markerWidth
             Tool.HIGHLIGHTER -> highlighterWidth
             else -> 4f
@@ -308,6 +325,7 @@ class EditorActivity : Activity() {
         val clamped = w.coerceIn(range[0], range[1])
         when (t) {
             Tool.PEN -> penWidth = clamped
+            Tool.SHAPE -> shapeWidth = clamped
             Tool.MARKER -> markerWidth = clamped
             Tool.HIGHLIGHTER -> highlighterWidth = clamped
             else -> {}
@@ -317,6 +335,7 @@ class EditorActivity : Activity() {
     private fun getColorForTool(t: Tool): Int {
         return when (t) {
             Tool.PEN -> penColor
+            Tool.SHAPE -> shapeColor
             Tool.MARKER -> markerColor
             Tool.HIGHLIGHTER -> highlighterColor
             else -> activeColor
@@ -326,6 +345,7 @@ class EditorActivity : Activity() {
     private fun setColorForTool(t: Tool, c: Int) {
         val key = when (t) {
             Tool.PEN -> { penColor = c; "color_pen" }
+            Tool.SHAPE -> { shapeColor = c; "color_shape" }
             Tool.MARKER -> { markerColor = c; "color_marker" }
             Tool.HIGHLIGHTER -> { highlighterColor = c; "color_highlighter" }
             else -> null
@@ -1379,6 +1399,8 @@ class EditorActivity : Activity() {
             Triple(Tool.PEN, Icon.PEN, "Pena"),
             Triple(Tool.MARKER, Icon.MARKER, "Spidol"),
             Triple(Tool.HIGHLIGHTER, Icon.HIGHLIGHTER, "Stabilo"),
+            Triple(Tool.SHAPE, Icon.SHAPE, "Bentuk"),
+            Triple(Tool.SELECT, Icon.SELECT, "Pilih"),
             Triple(Tool.ERASER, Icon.ERASER, "Hapus"),
             Triple(Tool.TEXT, Icon.TEXT, "Teks"),
             Triple(Tool.PAN, Icon.PAN, "Geser")
@@ -1960,6 +1982,12 @@ class EditorActivity : Activity() {
             })
         }
 
+        tabletShapePicker = buildShapeKindPicker().also {
+            fullPanel.addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                bottomMargin = dp(14f)
+            })
+        }
+
         val colorLabel = TextView(this).apply {
             text = "Warna"
             setTextColor(Palette.INK_SOFT)
@@ -2083,6 +2111,7 @@ class EditorActivity : Activity() {
             onCommit = { v ->
                 val key = when (activeTool) {
                     Tool.PEN -> "width_pen"
+                    Tool.SHAPE -> "width_shape"
                     Tool.MARKER -> "width_marker"
                     Tool.HIGHLIGHTER -> "width_highlighter"
                     else -> null
@@ -2286,6 +2315,8 @@ class EditorActivity : Activity() {
     private fun getToolName(t: Tool): String {
         return when (t) {
             Tool.PEN -> "Pena"
+            Tool.SHAPE -> "Bentuk"
+            Tool.SELECT -> "Pilih"
             Tool.MARKER -> "Spidol"
             Tool.HIGHLIGHTER -> "Stabilo"
             Tool.ERASER -> "Hapus"
@@ -2309,6 +2340,11 @@ class EditorActivity : Activity() {
             val range = widthRangeForTool(activeTool)
             slider.setRange(range[0], range[1], range[2])
             slider.value = currentW
+        }
+
+        tabletShapePicker?.let { picker ->
+            picker.visibility = if (activeTool == Tool.SHAPE) View.VISIBLE else View.GONE
+            styleShapeKindPicker(picker)
         }
 
         for ((colorVal, btn) in tabletSideColorViews) {
@@ -2442,6 +2478,8 @@ class EditorActivity : Activity() {
             Triple(Tool.PEN, Icon.PEN, "Pena"),
             Triple(Tool.MARKER, Icon.MARKER, "Spidol"),
             Triple(Tool.HIGHLIGHTER, Icon.HIGHLIGHTER, "Stabilo"),
+            Triple(Tool.SHAPE, Icon.SHAPE, "Bentuk"),
+            Triple(Tool.SELECT, Icon.SELECT, "Pilih"),
             Triple(Tool.ERASER, Icon.ERASER, "Hapus"),
             Triple(Tool.TEXT, Icon.TEXT, "Teks"),
             Triple(Tool.PAN, Icon.PAN, "Geser")
@@ -2560,6 +2598,10 @@ class EditorActivity : Activity() {
     }
 
     private fun isBrushTool(t: Tool): Boolean {
+        return t == Tool.PEN || t == Tool.MARKER || t == Tool.HIGHLIGHTER || t == Tool.SHAPE
+    }
+
+    private fun hasSnapOption(t: Tool): Boolean {
         return t == Tool.PEN || t == Tool.MARKER || t == Tool.HIGHLIGHTER
     }
 
@@ -2745,6 +2787,151 @@ class EditorActivity : Activity() {
         }
     }
 
+    private fun shapeKindName(k: ShapeKind): String {
+        return when (k) {
+            ShapeKind.LINE -> "Garis"
+            ShapeKind.ARROW -> "Panah"
+            ShapeKind.RECT -> "Kotak"
+            ShapeKind.ELLIPSE -> "Elips"
+            ShapeKind.TRIANGLE -> "Segitiga"
+        }
+    }
+
+    private fun shapeKindIcon(k: ShapeKind): Icon {
+        return when (k) {
+            ShapeKind.LINE -> Icon.SHAPE_LINE
+            ShapeKind.ARROW -> Icon.SHAPE_ARROW
+            ShapeKind.RECT -> Icon.SHAPE_RECT
+            ShapeKind.ELLIPSE -> Icon.SHAPE_ELLIPSE
+            ShapeKind.TRIANGLE -> Icon.SHAPE_TRIANGLE
+        }
+    }
+
+    private fun buildShapeKindPicker(): LinearLayout {
+        val picker = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        val label = TextView(this).apply {
+            text = "Bentuk"
+            setTextColor(Palette.INK_SOFT)
+            textSize = 16f
+            typeface = Fonts.ui(context)
+        }
+        picker.addView(label, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(6f)
+        })
+
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4f), dp(4f), dp(4f), dp(8f))
+        }
+        val kinds = ShapeKind.values()
+        for (k in kinds) {
+            val icon = IconView(this).apply {
+                this.icon = shapeKindIcon(k)
+                showSelection = false
+                isClickable = false
+                isFocusable = false
+            }
+            val btn = FrameLayout(this).apply {
+                tag = k
+                isClickable = true
+                isFocusable = true
+                contentDescription = shapeKindName(k)
+                addView(icon, FrameLayout.LayoutParams(dp(32f), dp(32f), Gravity.CENTER))
+                setOnClickListener {
+                    canvasView.shapeKind = k
+                    getSharedPreferences("tulis_prefs", MODE_PRIVATE).edit().putString("shape_kind", k.name).apply()
+                    styleShapeKindPicker(picker)
+                }
+            }
+            row.addView(btn, LinearLayout.LayoutParams(dp(44f), dp(44f)).apply {
+                if (k != kinds.first()) marginStart = dp(12f)
+            })
+        }
+        picker.addView(row)
+        styleShapeKindPicker(picker)
+        return picker
+    }
+
+    private fun styleShapeKindPicker(picker: LinearLayout) {
+        val row = picker.getChildAt(1) as ViewGroup
+        val current = canvasView.shapeKind
+        for (i in 0 until row.childCount) {
+            val btn = row.getChildAt(i)
+            val isSel = btn.tag == current
+            btn.isSelected = isSel
+            btn.background = if (isSel) {
+                SketchDrawable(fill = Palette.YELLOW, stroke = Palette.INK, shadowOffsetDp = 0f, variant = 4)
+            } else {
+                null
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                btn.stateDescription = if (isSel) "Dipilih" else "Tidak dipilih"
+            }
+        }
+    }
+
+    private fun buildToggleRow(label: String, initial: Boolean, onToggle: (Boolean) -> Unit): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val labelView = TextView(this).apply {
+            text = label
+            setTextColor(Palette.INK)
+            textSize = 18f
+            typeface = Fonts.ui(context)
+        }
+        row.addView(labelView, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginEnd = dp(10f)
+        })
+
+        val track = FrameLayout(this).apply {
+            isClickable = true
+            isFocusable = true
+            contentDescription = label
+            addView(View(context).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Palette.INK)
+                }
+            })
+        }
+        styleToggle(track, initial)
+        track.setOnClickListener {
+            val next = !track.isSelected
+            styleToggle(track, next)
+            onToggle(next)
+        }
+        row.addView(track, LinearLayout.LayoutParams(dp(60f), dp(34f)))
+        return row
+    }
+
+    private fun styleToggle(track: FrameLayout, on: Boolean) {
+        track.isSelected = on
+        track.background = SketchDrawable(
+            fill = if (on) Palette.YELLOW else Palette.CARD,
+            stroke = Palette.INK,
+            variant = 6
+        )
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            track.stateDescription = if (on) "aktif" else "nonaktif"
+        }
+        val knobLp = FrameLayout.LayoutParams(dp(22f), dp(22f), if (on) Gravity.TOP or Gravity.END else Gravity.TOP or Gravity.START).apply {
+            topMargin = dp(4f)
+            if (on) marginEnd = dp(4f) else marginStart = dp(4f)
+        }
+        track.getChildAt(0).layoutParams = knobLp
+    }
+
+    private fun setSnapShapes(on: Boolean) {
+        snapShapes = on
+        canvasView.snapShapes = on
+        getSharedPreferences("tulis_prefs", MODE_PRIVATE).edit().putBoolean("snap_shapes", on).apply()
+    }
+
     private fun showToolOptionsPopover(anchor: View, t: Tool) {
         optionsPopup?.dismiss()
 
@@ -2754,6 +2941,12 @@ class EditorActivity : Activity() {
             val padTop = dp(16f)
             val padBottom = dp(24f)
             setPadding(padH, padTop, padH, padBottom)
+        }
+
+        if (t == Tool.SHAPE) {
+            cardView.addView(buildShapeKindPicker(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                bottomMargin = dp(14f)
+            })
         }
 
         val colorLabel = TextView(this).apply {
@@ -2863,6 +3056,7 @@ class EditorActivity : Activity() {
             onCommit = { v ->
                 val key = when (t) {
                     Tool.PEN -> "width_pen"
+                    Tool.SHAPE -> "width_shape"
                     Tool.MARKER -> "width_marker"
                     Tool.HIGHLIGHTER -> "width_highlighter"
                     else -> null
@@ -2873,6 +3067,12 @@ class EditorActivity : Activity() {
             }
         )
         cardView.addView(thickSlider, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        if (hasSnapOption(t)) {
+            cardView.addView(buildToggleRow("Rapikan bentuk saat ditahan", snapShapes) { setSnapShapes(it) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(14f)
+            })
+        }
 
         val separator = DashedSeparatorView(this)
         cardView.addView(separator, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(14f)).apply {
@@ -3590,6 +3790,7 @@ class EditorActivity : Activity() {
     }
 
     private fun flushAutosave(immediateThumb: Boolean) {
+        canvasView.commitPendingShape()
         mainHandler.removeCallbacks(autosaveRunnable)
         isAutosavePending = false
 

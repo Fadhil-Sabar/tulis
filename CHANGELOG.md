@@ -5,6 +5,9 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan
 ## [Unreleased]
 
 ### Ditambahkan
+- Tool Bentuk: garis, panah, kotak, elips, dan segitiga. Bentuk baru bisa digeser dan diubah ukurannya sebelum menyentuh area lain. Bentuk yang masih aktif juga bisa diputar.
+- Goresan pena, spidol, atau stabilo yang ditahan sebentar di akhir dirapikan menjadi garis, panah, kotak, elips, atau segitiga.
+- Alat Pilih: lasso atau ketuk untuk memilih goresan dan teks, lalu geser, ubah ukuran lewat sudut, putar, atau hapus.
 - Spesifikasi format arsip .tulis v2 di docs/format.md dan berkas contoh di docs/fixtures/
 
 ### Diubah
