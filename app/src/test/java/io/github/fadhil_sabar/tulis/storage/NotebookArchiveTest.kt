@@ -127,7 +127,7 @@ class NotebookArchiveTest {
                 for (e in z.entries()) {
                     out.putNextEntry(ZipEntry(e.name))
                     if (e.name == "manifest.json") {
-                        out.write(JSONObject(z.getInputStream(e).readBytes().toString(Charsets.UTF_8)).put("format", 2).toString().toByteArray())
+                        out.write(JSONObject(z.getInputStream(e).readBytes().toString(Charsets.UTF_8)).put("format", NotebookArchive.FORMAT + 1).toString().toByteArray())
                     } else z.getInputStream(e).copyTo(out)
                     out.closeEntry()
                 }
@@ -135,5 +135,26 @@ class NotebookArchiveTest {
         }
         val r = NotebookArchive.unpack(newer, File(tmp.root, "s3"))
         assertTrue(r is NotebookArchive.UnpackResult.Fail && r.reason == "Perbarui Tulis")
+    }
+
+    @Test
+    fun acceptsFormat1Archive() {
+        val dir = makeNotebook("nbFormat1", 1)
+        val zip = File(tmp.root, "nbFormat1.tulis")
+        NotebookArchive.pack(dir, emptyList(), "1.0", zip)
+        val format1Zip = File(tmp.root, "format1.tulis")
+        ZipOutputStream(format1Zip.outputStream()).use { out ->
+            java.util.zip.ZipFile(zip).use { z ->
+                for (e in z.entries()) {
+                    out.putNextEntry(ZipEntry(e.name))
+                    if (e.name == "manifest.json") {
+                        out.write(JSONObject(z.getInputStream(e).readBytes().toString(Charsets.UTF_8)).put("format", 1).toString().toByteArray())
+                    } else z.getInputStream(e).copyTo(out)
+                    out.closeEntry()
+                }
+            }
+        }
+        val r = NotebookArchive.unpack(format1Zip, File(tmp.root, "sFormat1"))
+        assertTrue(r is NotebookArchive.UnpackResult.Ok)
     }
 }

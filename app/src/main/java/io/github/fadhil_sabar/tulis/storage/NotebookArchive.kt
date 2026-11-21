@@ -13,10 +13,11 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 object NotebookArchive {
-    const val FORMAT = 1
-    private const val PAGE_CODEC = 1
+    const val FORMAT = 2
+    private const val PAGE_CODEC = 2
     private const val PAGE_MAGIC = 0x494E4B50
-    private const val PAGE_VERSION = 1
+    private const val PAGE_VERSION_1 = 1
+    private const val PAGE_VERSION_2 = 2
     private const val MAX_BYTES = 512L * 1024 * 1024
     private const val MAX_ENTRIES = 5000
     private const val BUF_SIZE = 64 * 1024
@@ -214,7 +215,9 @@ object NotebookArchive {
     private fun validPage(file: File): Boolean {
         return try {
             DataInputStream(FileInputStream(file)).use {
-                it.readInt() == PAGE_MAGIC && it.readByte().toInt() == PAGE_VERSION
+                val magic = it.readInt()
+                val version = it.readByte().toInt()
+                magic == PAGE_MAGIC && (version == PAGE_VERSION_1 || version == PAGE_VERSION_2)
             }
         } catch (t: Throwable) {
             false

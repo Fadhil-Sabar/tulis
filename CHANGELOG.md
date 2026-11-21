@@ -4,6 +4,12 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan
 
 ## [Unreleased]
 
+### Ditambahkan
+- Spesifikasi format arsip .tulis v2 di docs/format.md dan berkas contoh di docs/fixtures/
+
+### Diubah
+- Format halaman kini versi 2 yang netral platform agar bisa dibaca aplikasi iOS; notebook lama dimigrasikan otomatis di latar belakang. Arsip baru tidak bisa dibuka Tulis versi lama
+
 ## [0.2.0] - 2026-11-07
 
 ### Ditambahkan

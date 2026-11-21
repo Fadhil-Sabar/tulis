@@ -32,6 +32,10 @@ class NotebookRepository(private val context: Context) {
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    init {
+        migrateV1ToV2Async()
+    }
+
     private val notebooksDir: File
         get() = File(context.filesDir, "notebooks").apply { mkdirs() }
 
@@ -50,7 +54,7 @@ class NotebookRepository(private val context: Context) {
         return File(File(notebooksDir, id), "page_$index.bin")
     }
 
-    private fun atomicWriteFile(targetFile: File, writer: (FileOutputStream) -> Unit) {
+    private fun atomicWriteFile(targetFile: File, writer: (FileOutputStream) -> Unit) = synchronized(PageMigration.lock) {
         val parent = targetFile.parentFile ?: return
         if (!parent.exists()) {
             parent.mkdirs()
@@ -465,12 +469,7 @@ class NotebookRepository(private val context: Context) {
         executor.execute {
             try {
                 val preparedPage = PageContent()
-                for (item in strokeSnapshots) {
-                    if (item.encodedInputs == null) {
-                        item.encodedInputs = InkBridge.encodeInputs(item)
-                    }
-                    preparedPage.strokes.add(item)
-                }
+                preparedPage.strokes.addAll(strokeSnapshots)
                 preparedPage.texts.addAll(textSnapshots)
 
                 val target = pageFile(id, index)
@@ -558,12 +557,7 @@ class NotebookRepository(private val context: Context) {
                 }
 
                 val preparedPage = PageContent()
-                for (item in strokeSnapshots) {
-                    if (item.encodedInputs == null) {
-                        item.encodedInputs = InkBridge.encodeInputs(item)
-                    }
-                    preparedPage.strokes.add(item)
-                }
+                preparedPage.strokes.addAll(strokeSnapshots)
                 preparedPage.texts.addAll(textSnapshots)
 
                 val target = pageFile(id, index)
@@ -855,6 +849,10 @@ class NotebookRepository(private val context: Context) {
             restoreFolders(result.folderPath, result.id)
         } catch (t: Throwable) {
         }
+        try {
+            migrateNotebook(target)
+        } catch (t: Throwable) {
+        }
         return true
     }
 
@@ -885,11 +883,45 @@ class NotebookRepository(private val context: Context) {
         writeMetaSync(meta)
     }
 
+    private fun migrateV1ToV2Async() {
+        if (!migrationStarted.compareAndSet(false, true)) return
+        executor.execute {
+            migrateAllNotebooks()
+        }
+    }
+
+    private fun migrateAllNotebooks() {
+        try {
+            val dirs = notebooksDir.listFiles { f -> f.isDirectory && f.name != ".trash" } ?: return
+            for (dir in dirs) {
+                migrateNotebook(dir)
+            }
+        } catch (t: Throwable) {
+        }
+    }
+
+    private fun migrateNotebook(dir: File) {
+        PageMigration.migrateDir(dir) { pageFile ->
+            val rawCount = FileInputStream(pageFile).use { RawPageCodec.read(it) }.strokes.size
+            val page = FileInputStream(pageFile).use { PageCodec.read(it) }
+            if (page.strokes.size != rawCount) return@migrateDir null
+            val buf = java.io.ByteArrayOutputStream()
+            PageCodec.write(buf, page)
+            val bytes = buf.toByteArray()
+            val check = PageCodec.read(java.io.ByteArrayInputStream(bytes))
+            if (check.strokes.size == rawCount) bytes else null
+        }
+    }
+
     fun flush() {
         val future = executor.submit { }
         try {
             future.get(10, TimeUnit.SECONDS)
         } catch (t: Throwable) {
         }
+    }
+
+    private companion object {
+        val migrationStarted = java.util.concurrent.atomic.AtomicBoolean(false)
     }
 }
