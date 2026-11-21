@@ -1,0 +1,4 @@
+- Shape tool: lines, arrows, rectangles, ellipses, and triangles you can move, resize, and rotate
+- Strokes held at the end are tidied into shapes
+- Select tool: select strokes and text, then move, resize, rotate, or delete them
+- Page format version 2, older notebooks are migrated automatically

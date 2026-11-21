@@ -1,0 +1,4 @@
+- Tool Bentuk: garis, panah, kotak, elips, dan segitiga yang bisa digeser, diubah ukuran, dan diputar
+- Goresan yang ditahan di akhir dirapikan menjadi bentuk
+- Alat Pilih: pilih goresan dan teks lalu geser, ubah ukuran, putar, atau hapus
+- Format halaman versi 2, notebook lama dimigrasikan otomatis

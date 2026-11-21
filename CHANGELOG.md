@@ -4,6 +4,8 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-21
+
 ### Ditambahkan
 - Tool Bentuk: garis, panah, kotak, elips, dan segitiga. Bentuk baru bisa digeser dan diubah ukurannya sebelum menyentuh area lain. Bentuk yang masih aktif juga bisa diputar.
 - Goresan pena, spidol, atau stabilo yang ditahan sebentar di akhir dirapikan menjadi garis, panah, kotak, elips, atau segitiga.
@@ -37,6 +39,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan
 - Publikasi catatan sebagai `.md` dan PNG ke vault, ganti nama catatan, penyelesaian konflik
 - Pulihkan notebook dari vault dan hapus dari vault
 
-[Unreleased]: https://github.com/Fadhil-Sabar/tulis/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Fadhil-Sabar/tulis/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Fadhil-Sabar/tulis/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Fadhil-Sabar/tulis/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Fadhil-Sabar/tulis/releases/tag/v0.1.0
