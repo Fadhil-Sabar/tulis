@@ -15,6 +15,9 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan
 ### Diubah
 - Format halaman v3 untuk halaman bergambar (halaman tanpa gambar tetap v2; notebook bergambar tidak bisa dibuka Tulis versi lama)
 
+### Diperbaiki
+- Kertas lanskap tidak lagi berubah jadi potret saat layar perangkat diputar
+
 ## [0.3.0] - 2026-11-21
 
 ### Ditambahkan

@@ -300,6 +300,7 @@ class EditorActivity : Activity() {
         if (m.mode == NoteMode.INFINITE) {
             updateZoomIndicator()
         } else {
+            canvasView.setPageSize(m.orientation.pageW, m.orientation.pageH)
             canvasView.setStack(pageStack)
             updatePageIndicator()
             if (!canvasView.hasMovedViewport) {
