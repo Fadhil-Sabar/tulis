@@ -74,5 +74,5 @@ dependencies {
     implementation("androidx.ink:ink-storage:1.0.0")
     implementation("androidx.input:input-motionprediction:1.0.0")
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.json:json:20231013")
+    testImplementation("org.json:json:20260814")
 }
