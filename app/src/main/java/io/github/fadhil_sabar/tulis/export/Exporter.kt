@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.RectF
 import android.graphics.pdf.PdfDocument
+import io.github.fadhil_sabar.tulis.model.ImageProvider
 import io.github.fadhil_sabar.tulis.model.NoteMode
 import io.github.fadhil_sabar.tulis.model.PageContent
 import io.github.fadhil_sabar.tulis.model.PageOrientation
@@ -54,7 +55,18 @@ object Exporter {
         loadPage: (Int) -> PageContent,
         progress: (Int, Int) -> Unit
     ) {
-        val renderer = PageRenderer(job.paperStyle, job.paperSpacing, job.options.withPaper)
+        run(job, out, cancel, loadPage, progress, null)
+    }
+
+    fun run(
+        job: ExportJob,
+        out: OutputStream,
+        cancel: AtomicBoolean,
+        loadPage: (Int) -> PageContent,
+        progress: (Int, Int) -> Unit,
+        images: ImageProvider?
+    ) {
+        val renderer = PageRenderer(job.paperStyle, job.paperSpacing, job.options.withPaper, images)
         when (job.options.format) {
             ExportFormat.PDF -> writePdf(job, renderer, out, cancel, loadPage, progress)
             ExportFormat.PNG -> writePng(job, renderer, out, cancel, loadPage)

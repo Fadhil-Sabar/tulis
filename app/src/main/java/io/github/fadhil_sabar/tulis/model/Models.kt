@@ -54,6 +54,7 @@ class TextItem(
 class PageContent {
     val strokes: MutableList<StrokeItem> = ArrayList()
     val texts: MutableList<TextItem> = ArrayList()
+    val images: MutableList<ImageItem> = ArrayList()
     var revision: Int = 0
     var onActionPushed: ((PageContent) -> Unit)? = null
 
@@ -126,6 +127,39 @@ class PageContent {
         }
     }
 
+    private inner class AddImageAction(val image: ImageItem) : Action {
+        override fun undo() {
+            images.remove(image)
+        }
+        override fun redo() {
+            images.add(image)
+        }
+    }
+
+    private inner class AddItemsAction(
+        val addedStrokes: List<StrokeItem>,
+        val addedTexts: List<TextItem>,
+        val addedImages: List<ImageItem>
+    ) : Action {
+        override fun undo() {
+            strokes.removeAll(addedStrokes)
+            texts.removeAll(addedTexts)
+            images.removeAll(addedImages)
+        }
+
+        override fun redo() {
+            strokes.addAll(addedStrokes)
+            texts.addAll(addedTexts)
+            images.addAll(addedImages)
+        }
+    }
+
+    private class ImageStateEntry(
+        val item: ImageItem,
+        val oldState: FloatArray,
+        val newState: FloatArray
+    )
+
     private class TextMoveEntry(
         val item: TextItem,
         val oldX: Float,
@@ -141,7 +175,8 @@ class PageContent {
 
     private inner class RemoveItemsAction(
         val strokeEntries: List<Pair<Int, StrokeItem>>,
-        val textEntries: List<Pair<Int, TextItem>>
+        val textEntries: List<Pair<Int, TextItem>>,
+        val imageEntries: List<Pair<Int, ImageItem>>
     ) : Action {
         override fun undo() {
             for (i in 0 until strokeEntries.size) {
@@ -151,6 +186,10 @@ class PageContent {
             for (i in 0 until textEntries.size) {
                 val entry = textEntries[i]
                 texts.add(entry.first.coerceIn(0, texts.size), entry.second)
+            }
+            for (i in 0 until imageEntries.size) {
+                val entry = imageEntries[i]
+                images.add(entry.first.coerceIn(0, images.size), entry.second)
             }
         }
 
@@ -167,12 +206,19 @@ class PageContent {
                     texts.removeAt(idx)
                 }
             }
+            for (i in imageEntries.indices.reversed()) {
+                val idx = imageEntries[i].first
+                if (idx in 0 until images.size) {
+                    images.removeAt(idx)
+                }
+            }
         }
     }
 
     private inner class ReplaceItemsAction(
         val strokePairs: List<Pair<StrokeItem, StrokeItem>>,
-        val textEntries: List<TextMoveEntry>
+        val textEntries: List<TextMoveEntry>,
+        val imageEntries: List<ImageStateEntry>
     ) : Action {
         override fun undo() {
             for (i in 0 until strokePairs.size) {
@@ -190,6 +236,10 @@ class PageContent {
                     e.item.sizeWorld = e.oldSize
                     e.item.widthWorld = e.oldWidth
                 }
+            }
+            for (i in 0 until imageEntries.size) {
+                val e = imageEntries[i]
+                e.item.setState(e.oldState)
             }
         }
 
@@ -209,6 +259,49 @@ class PageContent {
                     e.item.sizeWorld = e.newSize
                     e.item.widthWorld = e.newWidth
                 }
+            }
+            for (i in 0 until imageEntries.size) {
+                val e = imageEntries[i]
+                e.item.setState(e.newState)
+            }
+        }
+    }
+
+    private class TextColorEntry(
+        val item: TextItem,
+        val oldColor: Int,
+        val newColor: Int
+    )
+
+    private inner class RecolorItemsAction(
+        val strokePairs: List<Pair<StrokeItem, StrokeItem>>,
+        val textEntries: List<TextColorEntry>
+    ) : Action {
+        override fun undo() {
+            for (i in 0 until strokePairs.size) {
+                val pair = strokePairs[i]
+                val idx = strokes.indexOf(pair.second)
+                if (idx >= 0) {
+                    strokes[idx] = pair.first
+                }
+            }
+            for (i in 0 until textEntries.size) {
+                val e = textEntries[i]
+                e.item.colorArgb = e.oldColor
+            }
+        }
+
+        override fun redo() {
+            for (i in 0 until strokePairs.size) {
+                val pair = strokePairs[i]
+                val idx = strokes.indexOf(pair.first)
+                if (idx >= 0) {
+                    strokes[idx] = pair.second
+                }
+            }
+            for (i in 0 until textEntries.size) {
+                val e = textEntries[i]
+                e.item.colorArgb = e.newColor
             }
         }
     }
@@ -258,7 +351,27 @@ class PageContent {
         pushAction(EditTextAction(t, old, newText))
     }
 
-    fun removeItems(strokes: List<StrokeItem>, texts: List<TextItem>) {
+    fun addImage(img: ImageItem) {
+        images.add(img)
+        pushAction(AddImageAction(img))
+    }
+
+    fun addItems(
+        strokes: List<StrokeItem>,
+        texts: List<TextItem>,
+        images: List<ImageItem>
+    ) {
+        if (strokes.isEmpty() && texts.isEmpty() && images.isEmpty()) return
+        val action = AddItemsAction(ArrayList(strokes), ArrayList(texts), ArrayList(images))
+        action.redo()
+        pushAction(action)
+    }
+
+    fun removeItems(
+        strokes: List<StrokeItem>,
+        texts: List<TextItem>,
+        images: List<ImageItem> = emptyList()
+    ) {
         val strokeEntries = ArrayList<Pair<Int, StrokeItem>>()
         val seenStrokeIdx = HashSet<Int>()
         for (i in 0 until strokes.size) {
@@ -281,8 +394,19 @@ class PageContent {
         }
         textEntries.sortBy { it.first }
 
-        if (strokeEntries.isEmpty() && textEntries.isEmpty()) return
-        val action = RemoveItemsAction(strokeEntries, textEntries)
+        val imageEntries = ArrayList<Pair<Int, ImageItem>>()
+        val seenImageIdx = HashSet<Int>()
+        for (i in 0 until images.size) {
+            val img = images[i]
+            val idx = this.images.indexOf(img)
+            if (idx >= 0 && seenImageIdx.add(idx)) {
+                imageEntries.add(Pair(idx, img))
+            }
+        }
+        imageEntries.sortBy { it.first }
+
+        if (strokeEntries.isEmpty() && textEntries.isEmpty() && imageEntries.isEmpty()) return
+        val action = RemoveItemsAction(strokeEntries, textEntries, imageEntries)
         action.redo()
         pushAction(action)
     }
@@ -292,7 +416,10 @@ class PageContent {
         newStrokes: List<StrokeItem>,
         texts: List<TextItem>,
         oldTextXY: List<FloatArray>,
-        newTextXY: List<FloatArray>
+        newTextXY: List<FloatArray>,
+        images: List<ImageItem> = emptyList(),
+        oldImg: List<FloatArray> = emptyList(),
+        newImg: List<FloatArray> = emptyList()
     ) {
         val strokePairs = ArrayList<Pair<StrokeItem, StrokeItem>>()
         val strokeCount = minOf(oldStrokes.size, newStrokes.size)
@@ -329,8 +456,57 @@ class PageContent {
             }
         }
 
+        val imageEntries = ArrayList<ImageStateEntry>()
+        val imageCount = minOf(images.size, oldImg.size, newImg.size)
+        for (i in 0 until imageCount) {
+            val oldS = oldImg[i]
+            val newS = newImg[i]
+            if (oldS.size >= 5 && newS.size >= 5) {
+                val changed = oldS[0] != newS[0] ||
+                    oldS[1] != newS[1] ||
+                    oldS[2] != newS[2] ||
+                    oldS[3] != newS[3] ||
+                    oldS[4] != newS[4]
+                if (changed) {
+                    imageEntries.add(ImageStateEntry(images[i], oldS.copyOf(5), newS.copyOf(5)))
+                }
+            }
+        }
+
+        if (strokePairs.isEmpty() && textEntries.isEmpty() && imageEntries.isEmpty()) return
+        val action = ReplaceItemsAction(strokePairs, textEntries, imageEntries)
+        action.redo()
+        pushAction(action)
+    }
+
+    fun recolorItems(
+        oldStrokes: List<StrokeItem>,
+        newStrokes: List<StrokeItem>,
+        texts: List<TextItem>,
+        newTextColors: IntArray
+    ) {
+        val strokePairs = ArrayList<Pair<StrokeItem, StrokeItem>>()
+        val strokeCount = minOf(oldStrokes.size, newStrokes.size)
+        for (i in 0 until strokeCount) {
+            val oldS = oldStrokes[i]
+            val newS = newStrokes[i]
+            if (oldS !== newS && this.strokes.indexOf(oldS) >= 0) {
+                strokePairs.add(Pair(oldS, newS))
+            }
+        }
+
+        val textEntries = ArrayList<TextColorEntry>()
+        val textCount = minOf(texts.size, newTextColors.size)
+        for (i in 0 until textCount) {
+            val t = texts[i]
+            val newColor = newTextColors[i]
+            if (this.texts.indexOf(t) >= 0 && t.colorArgb != newColor) {
+                textEntries.add(TextColorEntry(t, t.colorArgb, newColor))
+            }
+        }
+
         if (strokePairs.isEmpty() && textEntries.isEmpty()) return
-        val action = ReplaceItemsAction(strokePairs, textEntries)
+        val action = RecolorItemsAction(strokePairs, textEntries)
         action.redo()
         pushAction(action)
     }
@@ -386,6 +562,9 @@ class PageContent {
         for (i in 0 until texts.size) {
             val t = texts[i]
             copy.texts.add(TextItem(t.x, t.y, t.sizeWorld, t.colorArgb, t.widthWorld, t.text))
+        }
+        for (i in 0 until images.size) {
+            copy.images.add(images[i].copy())
         }
         copy.revision = revision
         return copy

@@ -439,4 +439,143 @@ class RawPageCodecTest {
             }
         }
     }
+
+    @Test
+    fun v3RoundTripWithImages() {
+        val base = createSyntheticPage()
+        val img1 = RawImage(
+            name = "img_0123456789abcdef0123456789abcdef01234567.webp",
+            cx = 250.5f,
+            cy = -120.25f,
+            w = 320f,
+            h = 240f,
+            rotationDeg = 15.5f
+        )
+        val img2 = RawImage(
+            name = "img_fedcba9876543210fedcba9876543210fedcba98.png",
+            cx = 0f,
+            cy = 480f,
+            w = 128.75f,
+            h = 64.25f,
+            rotationDeg = -45f
+        )
+        val original = base.copy(images = listOf(img1, img2))
+        val baos = ByteArrayOutputStream()
+        RawPageCodec.write(baos, original)
+        val bytes = baos.toByteArray()
+        assertEquals(RawPageCodec.VERSION_3, bytes[4])
+
+        val parsed = RawPageCodec.read(ByteArrayInputStream(bytes))
+        assertEquals(original, parsed)
+        assertEquals(2, parsed.images.size)
+
+        val baos2 = ByteArrayOutputStream()
+        RawPageCodec.write(baos2, parsed)
+        assertArrayEquals(bytes, baos2.toByteArray())
+    }
+
+    @Test
+    fun pageWithoutImagesWritesV2Bytes() {
+        val page = createSyntheticPage()
+        val baos = ByteArrayOutputStream()
+        RawPageCodec.write(baos, page)
+        val bytes = baos.toByteArray()
+        assertEquals(RawPageCodec.VERSION_2, bytes[4])
+
+        val parsed = RawPageCodec.read(ByteArrayInputStream(bytes))
+        assertEquals(page, parsed)
+        assertTrue(parsed.images.isEmpty())
+    }
+
+    @Test
+    fun v2StreamReadsWithEmptyImages() {
+        val bos = ByteArrayOutputStream()
+        val dos = DataOutputStream(bos)
+        dos.writeInt(RawPageCodec.MAGIC)
+        dos.writeByte(RawPageCodec.VERSION_2.toInt())
+        dos.writeInt(0)
+        dos.writeInt(1)
+        dos.writeFloat(12f)
+        dos.writeFloat(34f)
+        dos.writeFloat(16f)
+        dos.writeInt(0xFF000000.toInt())
+        dos.writeFloat(100f)
+        val textBytes = "Halo v2".toByteArray(Charsets.UTF_8)
+        dos.writeInt(textBytes.size)
+        dos.write(textBytes)
+        dos.flush()
+
+        val page = RawPageCodec.read(ByteArrayInputStream(bos.toByteArray()))
+        assertEquals(0, page.strokes.size)
+        assertEquals(1, page.texts.size)
+        assertEquals("Halo v2", page.texts[0].text)
+        assertTrue(page.images.isEmpty())
+    }
+
+    private fun buildSingleImageV3Stream(
+        imageCount: Int = 1,
+        cx: Float = 10f,
+        cy: Float = 20f,
+        w: Float = 100f,
+        h: Float = 80f,
+        rotationDeg: Float = 0f,
+        name: String = "img_0123456789abcdef0123456789abcdef01234567.jpg",
+        writeItem: Boolean = true
+    ): ByteArray {
+        val bos = ByteArrayOutputStream()
+        val dos = DataOutputStream(bos)
+        dos.writeInt(RawPageCodec.MAGIC)
+        dos.writeByte(RawPageCodec.VERSION_3.toInt())
+        dos.writeInt(0)
+        dos.writeInt(0)
+        dos.writeInt(imageCount)
+        if (writeItem) {
+            dos.writeFloat(cx)
+            dos.writeFloat(cy)
+            dos.writeFloat(w)
+            dos.writeFloat(h)
+            dos.writeFloat(rotationDeg)
+            val nameBytes = name.toByteArray(Charsets.US_ASCII)
+            dos.writeInt(nameBytes.size)
+            dos.write(nameBytes)
+        }
+        dos.flush()
+        return bos.toByteArray()
+    }
+
+    @Test(expected = IOException::class)
+    fun invalidImageNameTraversalThrows() {
+        val bytes = buildSingleImageV3Stream(name = "../x")
+        RawPageCodec.read(ByteArrayInputStream(bytes))
+    }
+
+    @Test(expected = IOException::class)
+    fun invalidImageNameShortHashThrows() {
+        val bytes = buildSingleImageV3Stream(name = "img_abc.webp")
+        RawPageCodec.read(ByteArrayInputStream(bytes))
+    }
+
+    @Test(expected = IOException::class)
+    fun negativeImageCountThrows() {
+        val bytes = buildSingleImageV3Stream(imageCount = -1, writeItem = false)
+        RawPageCodec.read(ByteArrayInputStream(bytes))
+    }
+
+    @Test(expected = IOException::class)
+    fun excessiveImageCountThrows() {
+        val bytes = buildSingleImageV3Stream(imageCount = RawPageCodec.MAX_IMAGES + 1, writeItem = false)
+        RawPageCodec.read(ByteArrayInputStream(bytes))
+    }
+
+    @Test(expected = IOException::class)
+    fun nonPositiveImageDimensionThrows() {
+        val bytes = buildSingleImageV3Stream(w = 0f)
+        RawPageCodec.read(ByteArrayInputStream(bytes))
+    }
+
+    @Test(expected = IOException::class)
+    fun nonFiniteImageCoordinateThrows() {
+        val bytes = buildSingleImageV3Stream(cx = Float.NaN)
+        RawPageCodec.read(ByteArrayInputStream(bytes))
+    }
 }

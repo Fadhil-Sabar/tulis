@@ -1,6 +1,6 @@
-# Spesifikasi Format Berkas Tulis (.tulis) & PageCodec v2
+# Spesifikasi Format Berkas Tulis (.tulis) & PageCodec v2/v3
 
-Dokumen ini mendefinisikan spesifikasi lengkap format cadangan `.tulis` dan format biner halaman `page_N.bin` (versi 2). Spesifikasi ini dirancang netral platform (tanpa ketergantungan pada AndroidX Ink atau Protobuf) agar dapat diimplementasikan dan dibaca/ditulis dari nol di platform lain, termasuk iOS (Swift).
+Dokumen ini mendefinisikan spesifikasi lengkap format cadangan `.tulis` dan format biner halaman `page_N.bin` (versi 2 dan 3). Spesifikasi ini dirancang netral platform (tanpa ketergantungan pada AndroidX Ink atau Protobuf) agar dapat diimplementasikan dan dibaca/ditulis dari nol di platform lain, termasuk iOS (Swift).
 
 ---
 
@@ -15,13 +15,16 @@ Berkas `.tulis` adalah arsip ZIP standar yang memuat berkas-berkas catatan berik
 ├── page_0.bin          (Halaman 0 dalam format biner)
 ├── page_1.bin          (Halaman 1, opsional jika ada)
 ├── ...
+├── img_<sha1>.<ext>    (Opsional: berkas gambar yang direferensikan halaman; ext: webp/png/jpg)
 └── thumb.webp          (Opsional: gambar thumbnail cover catatan)
 ```
 
 ### 1.1 Aturan Validasi Entri ZIP
 - Pola nama entri yang diizinkan (Regex):
-  `^(meta\.json|manifest\.json|thumb\.webp|page_\d+\.bin)$`
+  `^(meta\.json|manifest\.json|thumb\.webp|page_\d+\.bin|img_[0-9a-f]{40}\.(webp|png|jpg))$`
 - Entri di luar pola tersebut dianggap tidak valid (mencegah *Zip Slip* dan berkas asing).
+- Saat pengemasan (`pack`): hanya berkas gambar yang direferensikan oleh `page_0..page_(N-1).bin` yang disertakan, diurutkan secara deterministik berdasarkan nama berkas.
+- Saat pembongkaran (`unpack`): setiap berkas gambar yang direferensikan halaman wajib ada dan nilai SHA-1 isinya harus sama dengan bagian `<sha1>` pada namanya (jika tidak, ditolak dengan `"Gambar rusak"`). Entri `img_*` yang tidak direferensikan diabaikan dan dihapus dari direktori *staging*.
 - Batas keamanan pembaca:
   - Jumlah entri maksimal: 5.000 entri.
   - Ukuran total hasil ekstraksi maksimal: 512 MB.
@@ -36,8 +39,8 @@ Memuat informasi versi format dan hash integritas catatan:
 
 | Field | Tipe | Nilai / Contoh | Keterangan |
 |---|---|---|---|
-| `format` | Int | `2` | Versi struktur arsip (arsip lama: `1`, arsip saat ini: `2`). |
-| `pageCodec` | Int | `2` | Versi codec biner halaman (v1: `1`, v2 netral: `2`). |
+| `format` | Int | `2` / `3` | Versi struktur arsip (arsip lama: `1`, tanpa gambar: `2`, dengan gambar: `3`). |
+| `pageCodec` | Int | `2` / `3` | Versi codec biner halaman (v1: `1`, v2 tanpa gambar: `2`, v3 dengan gambar: `3`). |
 | `app` | String | `"0.2.0"` | Versi aplikasi pembuat arsip. |
 | `id` | String | `"uuid-string"` | UUID unik catatan. |
 | `title` | String | `"Catatan Fisika"` | Judul catatan. |
@@ -78,18 +81,18 @@ Semua tipe data numerik ditulis dan dibaca dalam urutan **Big-Endian** (sesuai `
 | Field | Tipe | Ukuran | Nilai | Keterangan |
 |---|---|---|---|---|
 | `magic` | Int32 | 4 byte | `0x494E4B50` | ASCII karakter `"INKP"`. |
-| `version` | Int8 | 1 byte | `2` | Versi 2 (versi netral). Versi 1 adalah format lama AndroidX Ink. |
+| `version` | Int8 | 1 byte | `2` atau `3` | Versi 2 (goresan & teks) atau Versi 3 (ditambah bagian gambar). Versi 1 adalah format lama AndroidX Ink. |
 
 ---
 
-### 3.2 Layout Halaman Versi 2 (Detail Byte Demi Byte)
+### 3.2 Layout Halaman Versi 2 & 3 (Detail Byte Demi Byte)
 
-Struktur isi halaman v2 tersusun sebagai berikut:
+Struktur isi halaman v2 dan v3 identik hingga akhir bagian teks. Jika halaman memiliki gambar, header memakai `version = 3` dan diikuti `[Bagian Gambar (Images)]`; jika tidak ada gambar, header tetap memakai `version = 2` dan berkas berakhir setelah bagian teks:
 
 ```
 [Header]
   magic: Int32 (0x494E4B50)
-  version: Int8 (2)
+  version: Int8 (2 atau 3)
 
 [Bagian Goresan (Strokes)]
   strokeCount: Int32 (0 .. 1.000.000)
@@ -119,7 +122,23 @@ Struktur isi halaman v2 tersusun sebagai berikut:
     widthWorld: Float32 (lebar batas kotak teks di world space)
     utf8Len: Int32 (panjang byte teks UTF-8, 0 .. 10.485.760)
     utf8Bytes: byte array sepanjang utf8Len
+
+[Bagian Gambar (Images)]  (hanya ada jika version == 3)
+  imageCount: Int32 (0 .. 10.000)
+  per gambar:
+    cx: Float32 (koordinat x pusat gambar di world space, harus finite)
+    cy: Float32 (koordinat y pusat gambar di world space, harus finite)
+    w: Float32 (lebar gambar di world space, harus finite dan > 0)
+    h: Float32 (tinggi gambar di world space, harus finite dan > 0)
+    rotationDeg: Float32 (sudut rotasi dalam derajat, harus finite)
+    nameLen: Int32 (panjang byte nama berkas ASCII, 1 .. 64)
+    nameBytes: byte array ASCII sepanjang nameLen
 ```
+
+Aturan validasi item gambar pada `version == 3`:
+- `name` harus cocok dengan regex `^img_[0-9a-f]{40}\.(webp|png|jpg)$` (mengacu ke berkas gambar berbasis hash SHA-1).
+- `cx`, `cy`, `w`, `h`, dan `rotationDeg` harus bernilai *finite* (bukan `NaN` atau `Infinity`), dengan `w > 0` dan `h > 0`.
+- Pembaca wajib melempar `IOException` jika aturan di atas atau batas `imageCount`/`nameLen` dilanggar.
 
 ---
 
@@ -228,6 +247,7 @@ Integritas arsip catatan diverifikasi dengan SHA-256 berawalan prefiks `"v2:"`. 
    Untuk indeks halaman `i` dari `0` hingga `pageCount - 1`:
    - Jika berkas `page_i.bin` ada, baca seluruh byte berkas dan masukkan ke SHA-256.
    - Jika berkas `page_i.bin` tidak ditemukan, masukkan string UTF-8 `"missing=" + i + "\n"`.
+   *(Catatan: algoritma `contentHash` tidak berubah untuk halaman v3 yang memuat gambar. Karena setiap entri gambar di dalam `page_i.bin` menyimpan nama berkas berbasis hash SHA-1 `img_<sha1>.<ext>` serta posisi, ukuran, dan rotasinya, setiap penambahan, penghapusan, atau perubahan gambar otomatis mengubah byte `page_i.bin` yang ikut di-hash.)*
 4. **Hasil Akhir**:
    Keluaran 32-byte digest diubah menjadi 64 karakter heksadesimal huruf kecil, diawali dengan `"v2:"`:
    ```
@@ -239,9 +259,12 @@ Integritas arsip catatan diverifikasi dengan SHA-256 berawalan prefiks `"v2:"`. 
 ## 5. Aturan Kompatibilitas, Migrasi, & Sinkronisasi Vault
 
 ### 5.1 Kompatibilitas Mundur & Maju
-- Aplikasi dengan `FORMAT = 2` dapat membaca arsip lama (`format = 1`) maupun baru (`format = 2`).
-- Aplikasi versi lama (`FORMAT = 1`) yang mendapati arsip `format = 2` akan menolak dengan pesan `"Perbarui Tulis"`, mencegah kerusakan data.
-- Metode verifikasi halaman `validPage` menerima kedua versi halaman biner (`version == 1 || version == 2`).
+- Aplikasi dengan `FORMAT = 3` dapat membaca arsip lama (`format = 1` dan `format = 2`) maupun baru (`format = 3`).
+- Aplikasi versi lama (`FORMAT = 1` atau `FORMAT = 2`) yang mendapati arsip dengan `format` lebih tinggi akan menolak dengan pesan `"Perbarui Tulis"`, mencegah kerusakan data.
+- Arsip catatan yang tidak memiliki gambar tetap ditulis dengan `manifest.json` `format = 2`, `pageCodec = 2`, serta halaman biner **versi 2** yang identik byte demi byte dengan keluaran sebelum v3, sehingga catatan tanpa gambar tetap terbaca oleh Tulis versi lama (`FORMAT = 2`) dan fixture/hash tidak berubah.
+- Arsip catatan yang memiliki gambar ditulis dengan `manifest.json` `format = 3` dan `pageCodec = 3`, sehingga Tulis versi lama menolaknya alih-alih mengabaikan atau menghilangkan gambar.
+- `RawPageCodec.read` menerima versi halaman biner `1`, `2`, dan `3`; halaman v3 hanya ditulis jika halaman memiliki minimal satu gambar.
+- Metode verifikasi halaman `validPage` harus menerima seluruh versi halaman biner yang didukung (`version == 1 || version == 2 || version == 3`).
 
 ### 5.2 Migrasi Otomatis (Android)
 - `NotebookRepository` menjalankan pass migrasi otomatis satu kali di latar belakang pada executor serialized:

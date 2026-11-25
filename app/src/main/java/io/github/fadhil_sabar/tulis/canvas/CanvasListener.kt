@@ -9,4 +9,6 @@ interface CanvasListener {
     fun onViewportChanged()
     fun onVisiblePageChanged(index: Int) {}
     fun onPageWindowChanged(first: Int, last: Int) {}
+    fun onMultiFingerTap(fingers: Int): Boolean = false
+    fun onRequestSelectionColor(x: Float, y: Float, current: Int) {}
 }

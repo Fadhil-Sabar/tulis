@@ -16,6 +16,9 @@ import io.github.fadhil_sabar.tulis.ink.InkBridge
 import io.github.fadhil_sabar.tulis.ink.forEachInDrawOrder
 import io.github.fadhil_sabar.tulis.model.BrushKind
 import io.github.fadhil_sabar.tulis.ink.InkRenderer
+import io.github.fadhil_sabar.tulis.model.ImageDraw
+import io.github.fadhil_sabar.tulis.model.ImageItem
+import io.github.fadhil_sabar.tulis.model.ImageProvider
 import io.github.fadhil_sabar.tulis.model.NoteMode
 import io.github.fadhil_sabar.tulis.model.PageContent
 import io.github.fadhil_sabar.tulis.model.PageStack
@@ -39,6 +42,14 @@ class CanvasLayer(context: Context) : View(context) {
         set(value) {
             field = value
             invalidate()
+        }
+
+    var imageProvider: ImageProvider? = null
+        set(value) {
+            if (field !== value) {
+                field = value
+                invalidate()
+            }
         }
 
     var paperStyle: PaperStyle = PaperStyle.DOTS
@@ -131,6 +142,9 @@ class CanvasLayer(context: Context) : View(context) {
         isAntiAlias = true
     }
 
+    private val imagePaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val imagePlaceholderPaint = Paint()
+
     private val tmpMatrix = Matrix()
     private val tmpItemMatrix = Matrix()
     private val pageMatrix = Matrix()
@@ -142,6 +156,9 @@ class CanvasLayer(context: Context) : View(context) {
     private val pageShadowRect = RectF()
     private val textBoundsRect = RectF()
     private val localTextBoundsRect = RectF()
+    private val imageBoundsRect = RectF()
+    private val localImageBoundsRect = RectF()
+    private val visibleImages = ArrayList<ImageItem>()
 
     private val shadowOffsetXDp = 4f * density
     private val shadowOffsetYDp = 6f * density
@@ -359,6 +376,7 @@ class CanvasLayer(context: Context) : View(context) {
             val p = s.get(i)
             if (p != null) {
                 pageToScreen(i, pageMatrix)
+                drawImages(canvas, p, pageMatrix, offsetY)
                 pageRenderCache.draw(canvas, p, pageMatrix, viewport.scale, gestureActive)
 
                 val texts = p.texts
@@ -699,6 +717,8 @@ class CanvasLayer(context: Context) : View(context) {
     private fun drawContent(canvas: Canvas) {
         val p = page ?: return
 
+        drawImages(canvas, p, viewport.worldToScreen)
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && canvas.isHardwareAccelerated && contentNode != null) {
             drawStrokesAccelerated(canvas, p, contentNode)
         } else {
@@ -714,6 +734,38 @@ class CanvasLayer(context: Context) : View(context) {
                 continue
             }
             drawTextItem(canvas, textItem)
+        }
+    }
+
+    private fun drawImages(canvas: Canvas, p: PageContent, toDevice: Matrix, offsetY: Float = 0f) {
+        val images = p.images
+        if (images.isEmpty()) return
+        visibleImages.clear()
+        for (i in 0 until images.size) {
+            val item = images[i]
+            item.worldBounds(localImageBoundsRect)
+            imageBoundsRect.set(
+                localImageBoundsRect.left,
+                localImageBoundsRect.top + offsetY,
+                localImageBoundsRect.right,
+                localImageBoundsRect.bottom + offsetY
+            )
+            if (RectF.intersects(imageBoundsRect, visibleWorldRect)) {
+                visibleImages.add(item)
+            }
+        }
+        if (visibleImages.isNotEmpty()) {
+            ImageDraw.drawAll(
+                canvas,
+                visibleImages,
+                toDevice,
+                viewport.scale,
+                imageProvider,
+                imagePaint,
+                imagePlaceholderPaint,
+                tmpMatrix
+            )
+            visibleImages.clear()
         }
     }
 

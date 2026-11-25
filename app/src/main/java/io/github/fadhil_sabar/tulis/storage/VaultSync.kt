@@ -12,6 +12,7 @@ import io.github.fadhil_sabar.tulis.export.ExportFormat
 import io.github.fadhil_sabar.tulis.export.ExportJob
 import io.github.fadhil_sabar.tulis.export.ExportOptions
 import io.github.fadhil_sabar.tulis.export.Exporter
+import io.github.fadhil_sabar.tulis.model.ImageProvider
 import io.github.fadhil_sabar.tulis.model.NoteMode
 import io.github.fadhil_sabar.tulis.model.NotebookMeta
 import org.json.JSONObject
@@ -646,12 +647,13 @@ class VaultSync private constructor(appContext: Context) {
         val prev = s.pg?.split(",")
         val pg = ArrayList<String>(pageCount)
         val embeds = ArrayList<String>(pageCount)
+        val images = ImageStore.provider(repo.imageDir(id))
         for (i in 0 until pageCount) {
             val page = File(dir, "page_$i.bin")
             val part = if (page.isFile) "${page.length()}:${page.lastModified()}" else "missing"
             val name = pngName(i)
             val fresh = part == prev?.getOrNull(i) && assetFiles.containsKey(name)
-            val present = fresh || renderPage(id, meta, i, tree, assetDir, assetFiles)
+            val present = fresh || renderPage(id, meta, i, tree, assetDir, assetFiles, images)
             pg.add(if (present) part else "")
             if (present) embeds.add("![](_assets/$id/$name)")
         }
@@ -704,7 +706,15 @@ class VaultSync private constructor(appContext: Context) {
         saveState(tree.toString(), nb)
     }
 
-    private fun renderPage(id: String, meta: NotebookMeta, index: Int, tree: Uri, assetDir: Uri, files: MutableMap<String, Entry>): Boolean {
+    private fun renderPage(
+        id: String,
+        meta: NotebookMeta,
+        index: Int,
+        tree: Uri,
+        assetDir: Uri,
+        files: MutableMap<String, Entry>,
+        images: ImageProvider
+    ): Boolean {
         val name = pngName(index)
         val cache = File(File(context.cacheDir, "vault-png").apply { mkdirs() }, "$id-$index.png")
         try {
@@ -714,7 +724,7 @@ class VaultSync private constructor(appContext: Context) {
                 if (meta.mode == NoteMode.INFINITE) repo.loadPageSync(id, 0) else null
             )
             try {
-                cache.outputStream().use { Exporter.run(job, it, AtomicBoolean(false), { p -> repo.loadPageSync(id, p) }, { _, _ -> }) }
+                cache.outputStream().use { Exporter.run(job, it, AtomicBoolean(false), { p -> repo.loadPageSync(id, p) }, { _, _ -> }, images) }
             } catch (e: IllegalStateException) {
                 return false
             }
@@ -883,6 +893,9 @@ class VaultSync private constructor(appContext: Context) {
             val page = File(dir, "page_$i.bin")
             val part = if (page.isFile) "${page.length()}:${page.lastModified()}" else "missing"
             digest.update("$i=$part\n".toByteArray(Charsets.UTF_8))
+        }
+        for (img in ImageRefs.imageFiles(dir).sortedBy { it.name }) {
+            digest.update("img:${img.name}=${img.length()}:${img.lastModified()}\n".toByteArray(Charsets.UTF_8))
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
     }

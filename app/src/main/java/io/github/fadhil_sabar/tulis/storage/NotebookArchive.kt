@@ -13,15 +13,18 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 object NotebookArchive {
-    const val FORMAT = 2
-    private const val PAGE_CODEC = 2
+    const val FORMAT = 3
+    private const val FORMAT_V2 = 2
+    private const val PAGE_CODEC_V2 = 2
+    private const val PAGE_CODEC_V3 = 3
     private const val PAGE_MAGIC = 0x494E4B50
     private const val PAGE_VERSION_1 = 1
     private const val PAGE_VERSION_2 = 2
+    private const val PAGE_VERSION_3 = 3
     private const val MAX_BYTES = 512L * 1024 * 1024
     private const val MAX_ENTRIES = 5000
     private const val BUF_SIZE = 64 * 1024
-    private val entryName = Regex("^(meta\\.json|manifest\\.json|thumb\\.webp|page_\\d+\\.bin)$")
+    private val entryName = Regex("^(meta\\.json|manifest\\.json|thumb\\.webp|page_\\d+\\.bin|img_[0-9a-f]{40}\\.(webp|png|jpg))$")
     const val HASH_PREFIX = "v2:"
     private val PAPER_STYLES = setOf("PLAIN", "DOTS", "GRID", "LINES")
     private val ORIENTATIONS = setOf("PORTRAIT", "LANDSCAPE")
@@ -82,13 +85,20 @@ object NotebookArchive {
     fun pack(dir: File, folderPath: List<Pair<String, String>>, appVersion: String, out: File) {
         val meta = JSONObject(File(dir, "meta.json").readText())
         val pageCount = meta.getInt("pageCount")
+        val refs = ImageRefs.referencedNames(dir, pageCount)
+        val imagesToPack = if (refs != null) {
+            refs.sorted().map { File(dir, it) }.filter { it.isFile }
+        } else {
+            ImageRefs.imageFiles(dir).sortedBy { it.name }
+        }
+        val hasImages = (refs != null && refs.isNotEmpty()) || imagesToPack.isNotEmpty()
         val pathArr = JSONArray()
         for ((fid, fname) in folderPath) {
             pathArr.put(JSONObject().put("id", fid).put("name", fname))
         }
         val manifest = JSONObject()
-            .put("format", FORMAT)
-            .put("pageCodec", PAGE_CODEC)
+            .put("format", if (hasImages) FORMAT else FORMAT_V2)
+            .put("pageCodec", if (hasImages) PAGE_CODEC_V3 else PAGE_CODEC_V2)
             .put("app", appVersion)
             .put("id", meta.getString("id"))
             .put("title", meta.getString("title"))
@@ -106,6 +116,9 @@ object NotebookArchive {
                 }
                 val thumb = File(dir, "thumb.webp")
                 if (thumb.isFile) putFile(zos, thumb.name, thumb)
+                for (img in imagesToPack) {
+                    putFile(zos, img.name, img)
+                }
             }
             if (!tmp.renameTo(out)) {
                 out.delete()
@@ -209,7 +222,27 @@ object NotebookArchive {
         val hash = contentHash(stagingDir)
         val declared = manifest.getString("hash")
         if (declared.startsWith(HASH_PREFIX) && hash != declared) return UnpackResult.Fail("Hash tidak cocok")
+        val refs = ImageRefs.referencedNames(stagingDir, pageCount)
+        if (refs != null) {
+            for (name in refs) {
+                val imgFile = File(stagingDir, name)
+                if (!validImageFile(imgFile)) return UnpackResult.Fail("Gambar rusak")
+            }
+            for (imgFile in ImageRefs.imageFiles(stagingDir)) {
+                if (imgFile.name !in refs) imgFile.delete()
+            }
+        } else {
+            for (imgFile in ImageRefs.imageFiles(stagingDir)) {
+                if (!validImageFile(imgFile)) return UnpackResult.Fail("Gambar rusak")
+            }
+        }
         return UnpackResult.Ok(id, manifest.getString("title"), hash, pageCount, parseFolderPath(manifest))
+    }
+
+    private fun validImageFile(file: File): Boolean {
+        if (!file.isFile || !ImageRefs.isValidName(file.name)) return false
+        val expectedHash = file.name.substring(4, 44)
+        return ImageRefs.sha1Hex(file) == expectedHash
     }
 
     private fun validPage(file: File): Boolean {
@@ -217,7 +250,7 @@ object NotebookArchive {
             DataInputStream(FileInputStream(file)).use {
                 val magic = it.readInt()
                 val version = it.readByte().toInt()
-                magic == PAGE_MAGIC && (version == PAGE_VERSION_1 || version == PAGE_VERSION_2)
+                magic == PAGE_MAGIC && (version == PAGE_VERSION_1 || version == PAGE_VERSION_2 || version == PAGE_VERSION_3)
             }
         } catch (t: Throwable) {
             false

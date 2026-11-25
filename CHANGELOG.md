@@ -4,6 +4,17 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan
 
 ## [Unreleased]
 
+### Ditambahkan
+- Gestur ketuk 2 atau 3 jari dapat diatur (Urungkan, Ulangi, toggle penghapus, alat sebelumnya, atau alat tertentu) dari menu Gestur
+- Tombol hapus pada bentuk yang masih aktif
+- Sisipkan gambar ke catatan, lalu geser, ubah ukuran, putar, atau hapus lewat alat Pilih
+- Alat Pilih bisa menduplikat goresan, teks, dan gambar yang dipilih.
+- Tombol belakang dan depan pada stylus bisa diatur untuk urungkan, ulangi, ganti alat, atau aksi lain dari menu Gestur.
+- Alat Pilih bisa mengganti warna goresan dan teks yang dipilih.
+
+### Diubah
+- Format halaman v3 untuk halaman bergambar (halaman tanpa gambar tetap v2; notebook bergambar tidak bisa dibuka Tulis versi lama)
+
 ## [0.3.0] - 2026-11-21
 
 ### Ditambahkan

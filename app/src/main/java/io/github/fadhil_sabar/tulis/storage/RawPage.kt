@@ -113,15 +113,26 @@ data class RawText(
     val text: String
 )
 
+data class RawImage(
+    val name: String,
+    val cx: Float,
+    val cy: Float,
+    val w: Float,
+    val h: Float,
+    val rotationDeg: Float
+)
+
 data class RawPage(
     val strokes: List<RawStroke> = emptyList(),
-    val texts: List<RawText> = emptyList()
+    val texts: List<RawText> = emptyList(),
+    val images: List<RawImage> = emptyList()
 )
 
 object RawPageCodec {
     const val MAGIC = 0x494E4B50
     const val VERSION_1: Byte = 1
     const val VERSION_2: Byte = 2
+    const val VERSION_3: Byte = 3
 
     const val NO_STROKE_UNIT_LENGTH = 0.0f
     const val NO_PRESSURE = -1.0f
@@ -138,11 +149,15 @@ object RawPageCodec {
     const val MAX_INPUT_LEN = 16 * 1024 * 1024
     const val MAX_TEXT_LEN = 10 * 1024 * 1024
     const val MAX_TEXTS = 100_000
+    const val MAX_IMAGES = 10_000
+    val IMAGE_NAME = Regex("^img_[0-9a-f]{40}\\.(webp|png|jpg)$")
 
     fun write(out: OutputStream, page: RawPage) {
         val dos = DataOutputStream(out)
+        val images = page.images
+        val version = if (images.isEmpty()) VERSION_2 else VERSION_3
         dos.writeInt(MAGIC)
-        dos.writeByte(VERSION_2.toInt())
+        dos.writeByte(version.toInt())
 
         val strokes = page.strokes
         dos.writeInt(strokes.size)
@@ -185,6 +200,35 @@ object RawPageCodec {
             dos.writeInt(utf8.size)
             dos.write(utf8)
         }
+
+        if (images.isNotEmpty()) {
+            if (images.size > MAX_IMAGES) {
+                throw IOException("Invalid image count: ${images.size}")
+            }
+            dos.writeInt(images.size)
+            for (img in images) {
+                if (!img.cx.isFinite() || !img.cy.isFinite() || !img.rotationDeg.isFinite()) {
+                    throw IOException("Invalid image coordinates")
+                }
+                if (!img.w.isFinite() || img.w <= 0f || !img.h.isFinite() || img.h <= 0f) {
+                    throw IOException("Invalid image dimensions")
+                }
+                if (!IMAGE_NAME.matches(img.name)) {
+                    throw IOException("Invalid image name: ${img.name}")
+                }
+                val nameBytes = img.name.toByteArray(StandardCharsets.US_ASCII)
+                if (nameBytes.isEmpty() || nameBytes.size > 64) {
+                    throw IOException("Invalid image name length: ${nameBytes.size}")
+                }
+                dos.writeFloat(img.cx)
+                dos.writeFloat(img.cy)
+                dos.writeFloat(img.w)
+                dos.writeFloat(img.h)
+                dos.writeFloat(img.rotationDeg)
+                dos.writeInt(nameBytes.size)
+                dos.write(nameBytes)
+            }
+        }
         dos.flush()
     }
 
@@ -195,7 +239,7 @@ object RawPageCodec {
             throw IOException("Invalid magic header: $magic")
         }
         val version = dis.readByte()
-        if (version != VERSION_1 && version != VERSION_2) {
+        if (version != VERSION_1 && version != VERSION_2 && version != VERSION_3) {
             throw IOException("Unsupported version: $version")
         }
 
@@ -301,6 +345,41 @@ object RawPageCodec {
             texts.add(RawText(x, y, sizeWorld, colorArgb, widthWorld, text))
         }
 
-        return RawPage(strokes, texts)
+        val images = if (version == VERSION_3) {
+            val imageCount = dis.readInt()
+            if (imageCount < 0 || imageCount > MAX_IMAGES) {
+                throw IOException("Invalid image count: $imageCount")
+            }
+            val list = ArrayList<RawImage>(imageCount)
+            for (i in 0 until imageCount) {
+                val cx = dis.readFloat()
+                val cy = dis.readFloat()
+                val w = dis.readFloat()
+                val h = dis.readFloat()
+                val rotationDeg = dis.readFloat()
+                if (!cx.isFinite() || !cy.isFinite() || !rotationDeg.isFinite()) {
+                    throw IOException("Invalid image coordinates")
+                }
+                if (!w.isFinite() || w <= 0f || !h.isFinite() || h <= 0f) {
+                    throw IOException("Invalid image dimensions")
+                }
+                val nameLen = dis.readInt()
+                if (nameLen < 1 || nameLen > 64) {
+                    throw IOException("Invalid image name length: $nameLen")
+                }
+                val nameBytes = ByteArray(nameLen)
+                dis.readFully(nameBytes)
+                val name = String(nameBytes, StandardCharsets.US_ASCII)
+                if (!IMAGE_NAME.matches(name)) {
+                    throw IOException("Invalid image name: $name")
+                }
+                list.add(RawImage(name, cx, cy, w, h, rotationDeg))
+            }
+            list
+        } else {
+            emptyList()
+        }
+
+        return RawPage(strokes, texts, images)
     }
 }

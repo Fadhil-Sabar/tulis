@@ -9,20 +9,25 @@ import android.graphics.Canvas
 import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.TextUtils
 import android.util.LruCache
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.InputDevice
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
@@ -30,6 +35,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import io.github.fadhil_sabar.tulis.canvas.CanvasListener
+import io.github.fadhil_sabar.tulis.canvas.ImageCache
 import io.github.fadhil_sabar.tulis.canvas.NoteCanvasView
 import io.github.fadhil_sabar.tulis.export.ExportJob
 import io.github.fadhil_sabar.tulis.export.ExportOptions
@@ -44,6 +50,7 @@ import io.github.fadhil_sabar.tulis.model.pageW
 import io.github.fadhil_sabar.tulis.model.TextItem
 import io.github.fadhil_sabar.tulis.model.Tool
 import io.github.fadhil_sabar.tulis.shape.ShapeKind
+import io.github.fadhil_sabar.tulis.storage.ImageStore
 import io.github.fadhil_sabar.tulis.storage.NotebookRepository
 import io.github.fadhil_sabar.tulis.ui.ExportProgressDialog
 import io.github.fadhil_sabar.tulis.ui.Fonts
@@ -53,9 +60,11 @@ import io.github.fadhil_sabar.tulis.ui.MinimapView
 import io.github.fadhil_sabar.tulis.ui.Palette
 import io.github.fadhil_sabar.tulis.ui.SketchDrawable
 import io.github.fadhil_sabar.tulis.ui.SketchSlider
+import io.github.fadhil_sabar.tulis.ui.TapAction
 import io.github.fadhil_sabar.tulis.ui.UiPrefs
 import io.github.fadhil_sabar.tulis.ui.UndoBar
 import io.github.fadhil_sabar.tulis.ui.showExportDialog
+import io.github.fadhil_sabar.tulis.ui.showGestureSettingsDialog
 import io.github.fadhil_sabar.tulis.ui.showPaperDialog
 
 class EditorActivity : Activity() {
@@ -66,6 +75,7 @@ class EditorActivity : Activity() {
         const val EXTRA_ID = "id"
         private const val REQ_EXPORT = 7001
         private const val REQ_EXPORT_DIR = 7002
+        private const val REQ_IMAGE = 7003
     }
 
     private lateinit var repo: NotebookRepository
@@ -93,7 +103,8 @@ class EditorActivity : Activity() {
     private var btnDeletePage: View? = null
     private var tabletBtnDeletePage: View? = null
 
-    private var bottomToolbar: LinearLayout? = null
+    private var bottomToolbar: View? = null
+    private var toolScrollView: View? = null
     private val toolButtons = mutableMapOf<Tool, View>()
     private val toolDots = mutableMapOf<Tool, View>()
 
@@ -120,6 +131,8 @@ class EditorActivity : Activity() {
     private val thumbExecutor = java.util.concurrent.Executors.newFixedThreadPool(2)
 
     private var activeTool: Tool = Tool.PEN
+    private var previousTool: Tool? = null
+    private var eraserReturnTool: Tool? = null
     private var activeColor: Int = Palette.INK
     private var activeStrokeWidth: Float = 4f
     private var fingerCanDraw: Boolean = true
@@ -182,6 +195,8 @@ class EditorActivity : Activity() {
             finish()
             return
         }
+
+        repo.gcImagesAsync(notebookId)
 
         val prefs = getSharedPreferences("tulis_prefs", MODE_PRIVATE)
         fingerCanDraw = prefs.getBoolean("finger_draws", true)
@@ -277,6 +292,7 @@ class EditorActivity : Activity() {
         minimapView = null
         pageBar = null
         bottomToolbar = null
+        toolScrollView = null
 
         buildUi(m)
         applyToolSelection(activeTool)
@@ -392,6 +408,15 @@ class EditorActivity : Activity() {
                     updateUndoRedoState()
                 }
 
+                override fun onMultiFingerTap(fingers: Int): Boolean {
+                    performAction(UiPrefs.tapAction(this@EditorActivity, fingers))
+                    return true
+                }
+
+                override fun onRequestSelectionColor(x: Float, y: Float, current: Int) {
+                    showSelectionColorPopover(x, y, current)
+                }
+
                 override fun onViewportChanged() {
                     updateZoomIndicator()
                     minimapView?.refresh()
@@ -444,6 +469,7 @@ class EditorActivity : Activity() {
             }
         }
         canvasView.setPaper(m.paperStyle, m.paperSpacing)
+        canvasView.imageDir = repo.imageDir(notebookId)
 
         if (isTablet) {
             buildTabletUi(m)
@@ -705,6 +731,7 @@ class EditorActivity : Activity() {
         if (m.mode == NoteMode.INFINITE && UiPrefs.minimapVisible(this)) {
             val minimap = MinimapView(this).apply {
                 canvasView = this@EditorActivity.canvasView
+                imageProvider = this@EditorActivity.canvasView.imageProvider()
             }
             minimapView = minimap
             val minimapLp = FrameLayout.LayoutParams(
@@ -742,6 +769,7 @@ class EditorActivity : Activity() {
                 Gravity.START or Gravity.CENTER_VERTICAL
             ).apply {
                 topMargin = dp(94f)
+                bottomMargin = dp(16f)
                 marginStart = dp(16f)
             }
             ToolDock.RIGHT -> FrameLayout.LayoutParams(
@@ -750,6 +778,7 @@ class EditorActivity : Activity() {
                 Gravity.END or Gravity.CENTER_VERTICAL
             ).apply {
                 topMargin = dp(94f)
+                bottomMargin = dp(16f)
                 marginEnd = dp(16f)
             }
         }
@@ -834,7 +863,28 @@ class EditorActivity : Activity() {
     }
 
     private fun buildTopBar(m: NotebookMeta): LinearLayout {
-        val bar = LinearLayout(this).apply {
+        var actionsScroll: HorizontalScrollView? = null
+        val bar = object : LinearLayout(this) {
+            override fun measureChildWithMargins(
+                child: View,
+                parentWidthMeasureSpec: Int,
+                widthUsed: Int,
+                parentHeightMeasureSpec: Int,
+                heightUsed: Int
+            ) {
+                val adjustedWidthSpec = if (
+                    child === actionsScroll &&
+                    MeasureSpec.getMode(parentWidthMeasureSpec) != MeasureSpec.UNSPECIFIED
+                ) {
+                    val maxRight = (MeasureSpec.getSize(parentWidthMeasureSpec) - paddingLeft - paddingRight - dp(52f))
+                        .coerceAtLeast(0)
+                    MeasureSpec.makeMeasureSpec(maxRight, MeasureSpec.AT_MOST)
+                } else {
+                    parentWidthMeasureSpec
+                }
+                super.measureChildWithMargins(child, adjustedWidthSpec, widthUsed, parentHeightMeasureSpec, heightUsed)
+            }
+        }.apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             minimumHeight = dp(44f)
@@ -875,6 +925,8 @@ class EditorActivity : Activity() {
             textSize = 20f
             typeface = Fonts.ui(context)
             setSingleLine(true)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
             gravity = Gravity.CENTER_VERTICAL
             background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, variant = 0)
             setPadding(dp(16f), 0, dp(16f), 0)
@@ -888,6 +940,11 @@ class EditorActivity : Activity() {
         leftGroup.addView(titleView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         bar.addView(leftGroup, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+        val actionsRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END
+        }
 
         if (isPhoneLandscape && m.mode == NoteMode.PAGED) {
             val pillContainer = LinearLayout(this).apply {
@@ -957,7 +1014,7 @@ class EditorActivity : Activity() {
             nextBtn.addView(nextIcon, FrameLayout.LayoutParams(dp(22f), dp(22f), Gravity.CENTER))
             pillContainer.addView(nextBtn, LinearLayout.LayoutParams(dp(44f), dp(44f)))
 
-            bar.addView(pillContainer, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            actionsRow.addView(pillContainer, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 marginEnd = dp(6f)
             })
 
@@ -981,7 +1038,7 @@ class EditorActivity : Activity() {
             }
             addBtn.addView(addIcon, FrameLayout.LayoutParams(dp(22f), dp(22f), Gravity.CENTER))
             btnAddPage = addBtn
-            bar.addView(addBtn, LinearLayout.LayoutParams(dp(44f), dp(44f)).apply {
+            actionsRow.addView(addBtn, LinearLayout.LayoutParams(dp(44f), dp(44f)).apply {
                 marginEnd = dp(6f)
             })
 
@@ -1005,7 +1062,7 @@ class EditorActivity : Activity() {
             }
             delBtn.addView(delIcon, FrameLayout.LayoutParams(dp(22f), dp(22f), Gravity.CENTER))
             btnDeletePage = delBtn
-            bar.addView(delBtn, LinearLayout.LayoutParams(dp(44f), dp(44f)).apply {
+            actionsRow.addView(delBtn, LinearLayout.LayoutParams(dp(44f), dp(44f)).apply {
                 marginEnd = dp(6f)
             })
         }
@@ -1060,13 +1117,25 @@ class EditorActivity : Activity() {
             marginStart = dp(2f)
         })
 
-        bar.addView(buildPaperButton(44f, 24f, m), LinearLayout.LayoutParams(dp(44f), dp(44f)).apply {
+        actionsRow.addView(buildPaperButton(44f, 24f, m), LinearLayout.LayoutParams(dp(44f), dp(44f)).apply {
             marginEnd = dp(6f)
         })
-        bar.addView(buildExportButton(44f, 24f, m), LinearLayout.LayoutParams(dp(44f), dp(44f)).apply {
+        actionsRow.addView(buildImageButton(44f, 24f), LinearLayout.LayoutParams(dp(44f), dp(44f)).apply {
             marginEnd = dp(6f)
         })
-        bar.addView(undoRedoPill, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        actionsRow.addView(buildExportButton(44f, 24f, m), LinearLayout.LayoutParams(dp(44f), dp(44f)).apply {
+            marginEnd = dp(6f)
+        })
+        actionsRow.addView(undoRedoPill, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        val rightScrollView = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isFillViewport = true
+            addView(actionsRow, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        actionsScroll = rightScrollView
+        bar.addView(rightScrollView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         return bar
     }
@@ -1102,6 +1171,38 @@ class EditorActivity : Activity() {
             tint = Palette.INK
             strokeWidthDp = 2f
             contentDescription = "Kertas"
+        }
+        btn.addView(icon, FrameLayout.LayoutParams(dp(iconDp), dp(iconDp), Gravity.CENTER))
+        return btn
+    }
+
+    private fun buildImageButton(sizeDp: Float, iconDp: Float): FrameLayout {
+        val btn = FrameLayout(this).apply {
+            background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, round = true)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Sisipkan gambar"
+            setOnClickListener {
+                val intent = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                    type = "image/*"
+                }
+                try {
+                    @Suppress("DEPRECATION")
+                    startActivityForResult(intent, REQ_IMAGE)
+                } catch (_: Exception) {
+                    Toast.makeText(this@EditorActivity, "Tidak ada aplikasi pemilih gambar", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        val icon = IconView(this).apply {
+            showSelection = false
+            isClickable = false
+            isFocusable = false
+            icon = Icon.IMAGE
+            tint = Palette.INK
+            strokeWidthDp = 2f
+            contentDescription = "Sisipkan gambar"
         }
         btn.addView(icon, FrameLayout.LayoutParams(dp(iconDp), dp(iconDp), Gravity.CENTER))
         return btn
@@ -1178,6 +1279,8 @@ class EditorActivity : Activity() {
             textSize = 22f
             typeface = Fonts.ui(context)
             setSingleLine(true)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
             gravity = Gravity.CENTER_VERTICAL
             background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, variant = 0)
             setPadding(dp(22f), 0, dp(22f), 0)
@@ -1225,6 +1328,9 @@ class EditorActivity : Activity() {
         }
 
         rightGroup.addView(buildPaperButton(52f, 26f, m), LinearLayout.LayoutParams(dp(52f), dp(52f)).apply {
+            marginEnd = dp(12f)
+        })
+        rightGroup.addView(buildImageButton(52f, 26f), LinearLayout.LayoutParams(dp(52f), dp(52f)).apply {
             marginEnd = dp(12f)
         })
         rightGroup.addView(buildExportButton(52f, 26f, m), LinearLayout.LayoutParams(dp(52f), dp(52f)).apply {
@@ -1282,7 +1388,13 @@ class EditorActivity : Activity() {
         })
 
         rightGroup.addView(undoRedoPill, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        bar.addView(rightGroup, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val rightScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isFillViewport = true
+            addView(rightGroup, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        bar.addView(rightScroll, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
 
         return bar
     }
@@ -1330,7 +1442,31 @@ class EditorActivity : Activity() {
 
     private fun buildTabletToolPanel(dock: ToolDock): View {
         val isHoriz = (dock == ToolDock.TOP || dock == ToolDock.BOTTOM)
-        val panel = LinearLayout(this).apply {
+        var toolsScroll: View? = null
+        val panel = object : LinearLayout(this) {
+            override fun measureChildWithMargins(
+                child: View,
+                parentWidthMeasureSpec: Int,
+                widthUsed: Int,
+                parentHeightMeasureSpec: Int,
+                heightUsed: Int
+            ) {
+                var wSpec = parentWidthMeasureSpec
+                var hSpec = parentHeightMeasureSpec
+                if (child === toolsScroll) {
+                    if (isHoriz && MeasureSpec.getMode(parentWidthMeasureSpec) != MeasureSpec.UNSPECIFIED) {
+                        val maxToolsW = (MeasureSpec.getSize(parentWidthMeasureSpec) - paddingLeft - paddingRight - dp(32f))
+                            .coerceAtLeast(0)
+                        wSpec = MeasureSpec.makeMeasureSpec(maxToolsW, MeasureSpec.AT_MOST)
+                    } else if (!isHoriz && MeasureSpec.getMode(parentHeightMeasureSpec) != MeasureSpec.UNSPECIFIED) {
+                        val maxToolsH = (MeasureSpec.getSize(parentHeightMeasureSpec) - paddingTop - paddingBottom - dp(32f))
+                            .coerceAtLeast(0)
+                        hSpec = MeasureSpec.makeMeasureSpec(maxToolsH, MeasureSpec.AT_MOST)
+                    }
+                }
+                super.measureChildWithMargins(child, wSpec, widthUsed, hSpec, heightUsed)
+            }
+        }.apply {
             orientation = if (isHoriz) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, variant = 11)
@@ -1395,6 +1531,11 @@ class EditorActivity : Activity() {
             panel.addView(handleContainer, LinearLayout.LayoutParams(dp(68f), dp(32f)))
         }
 
+        val toolsRow = LinearLayout(this).apply {
+            orientation = if (isHoriz) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+
         val tools = listOf(
             Triple(Tool.PEN, Icon.PEN, "Pena"),
             Triple(Tool.MARKER, Icon.MARKER, "Spidol"),
@@ -1438,6 +1579,7 @@ class EditorActivity : Activity() {
                 textSize = toolLabelSp(15f)
                 typeface = Fonts.ui(context)
                 gravity = Gravity.CENTER
+                maxLines = 1
             }
             innerColumn.addView(labelV, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = dp(2f)
@@ -1471,17 +1613,36 @@ class EditorActivity : Activity() {
             toolDots[t] = dot
 
             if (isHoriz) {
-                panel.addView(itemContainer, LinearLayout.LayoutParams(dp(64f), dp(58f)).apply {
+                toolsRow.addView(itemContainer, LinearLayout.LayoutParams(dp(64f), dp(58f)).apply {
                     marginStart = dp(2f)
                     marginEnd = dp(2f)
                 })
             } else {
-                panel.addView(itemContainer, LinearLayout.LayoutParams(dp(68f), dp(58f)).apply {
+                toolsRow.addView(itemContainer, LinearLayout.LayoutParams(dp(68f), dp(58f)).apply {
                     topMargin = dp(2f)
                     bottomMargin = dp(2f)
                 })
             }
         }
+
+        val panelScroll = if (isHoriz) {
+            HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+                overScrollMode = View.OVER_SCROLL_NEVER
+                isFillViewport = true
+                addView(toolsRow, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            }
+        } else {
+            ScrollView(this).apply {
+                isVerticalScrollBarEnabled = false
+                overScrollMode = View.OVER_SCROLL_NEVER
+                isFillViewport = true
+                addView(toolsRow, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            }
+        }
+        toolsScroll = panelScroll
+        toolScrollView = panelScroll
+        panel.addView(panelScroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         applyToolSelection(activeTool)
         syncToolDots()
@@ -2200,6 +2361,11 @@ class EditorActivity : Activity() {
         fullPanel.addView(switchRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             topMargin = dp(8f)
         })
+        fullPanel.addView(buildGestureRow(18f) {
+            showGestureSettingsDialog(this) {}
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(8f)
+        })
 
         rootContainer.addView(fullPanel, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
@@ -2460,18 +2626,11 @@ class EditorActivity : Activity() {
         minimapView?.refresh()
     }
 
-    private fun buildBottomToolbar(): LinearLayout {
+    private fun buildBottomToolbar(): View {
         val isLandscape = isPhoneLandscape
         val bar = LinearLayout(this).apply {
             orientation = if (isLandscape) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
-            gravity = if (isLandscape) Gravity.CENTER_HORIZONTAL else Gravity.CENTER_VERTICAL
-            background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, variant = 11)
-            setPadding(if (isLandscape) dp(2f) else dp(4f), if (isLandscape) dp(4f) else dp(2f), if (isLandscape) dp(2f) else dp(4f), if (isLandscape) dp(4f) else dp(2f))
-            if (isLandscape) {
-                minimumWidth = dp(64f)
-            } else {
-                minimumHeight = dp(62f)
-            }
+            gravity = Gravity.CENTER
         }
 
         val tools = listOf(
@@ -2491,6 +2650,11 @@ class EditorActivity : Activity() {
                 isFocusable = true
                 contentDescription = title
                 background = null
+                if (isLandscape) {
+                    minimumHeight = dp(52f)
+                } else {
+                    minimumWidth = dp(56f)
+                }
             }
 
             val innerColumn = LinearLayout(this).apply {
@@ -2498,6 +2662,9 @@ class EditorActivity : Activity() {
                 gravity = Gravity.CENTER
                 isClickable = false
                 isFocusable = false
+                if (!isLandscape) {
+                    setPadding(dp(4f), 0, dp(4f), 0)
+                }
             }
 
             val iconV = IconView(this).apply {
@@ -2517,6 +2684,7 @@ class EditorActivity : Activity() {
                 textSize = toolLabelSp(13f)
                 typeface = Fonts.ui(context)
                 gravity = Gravity.CENTER
+                maxLines = 1
             }
             innerColumn.addView(labelV, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = dp(2f)
@@ -2555,26 +2723,53 @@ class EditorActivity : Activity() {
             toolButtons[t] = itemContainer
             toolDots[t] = dot
             if (isLandscape) {
-                bar.addView(itemContainer, LinearLayout.LayoutParams(dp(58f), 0, 1f).apply {
+                bar.addView(itemContainer, LinearLayout.LayoutParams(dp(58f), ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
                     topMargin = dp(2f)
                     bottomMargin = dp(2f)
                 })
             } else {
-                bar.addView(itemContainer, LinearLayout.LayoutParams(0, dp(62f), 1f))
+                bar.addView(itemContainer, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(62f), 1f))
             }
         }
 
-        return object : LinearLayout(this) {
+        val scrollView: View = if (isLandscape) {
+            ScrollView(this).apply {
+                isVerticalScrollBarEnabled = false
+                overScrollMode = View.OVER_SCROLL_NEVER
+                isFillViewport = true
+                addView(bar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            }
+        } else {
+            HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+                overScrollMode = View.OVER_SCROLL_NEVER
+                isFillViewport = true
+                addView(bar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            }
+        }
+        toolScrollView = scrollView
+
+        return object : FrameLayout(this) {
             init {
-                orientation = bar.orientation
-                gravity = bar.gravity
-                background = bar.background
-                setPadding(bar.paddingLeft, bar.paddingTop, bar.paddingRight, bar.paddingBottom)
-                while (bar.childCount > 0) {
-                    val child = bar.getChildAt(0)
-                    bar.removeViewAt(0)
-                    addView(child)
+                background = SketchDrawable(fill = Palette.CARD, stroke = Palette.INK, variant = 11)
+                setPadding(
+                    if (isLandscape) dp(2f) else dp(4f),
+                    if (isLandscape) dp(4f) else dp(2f),
+                    if (isLandscape) dp(2f) else dp(4f),
+                    if (isLandscape) dp(4f) else dp(2f)
+                )
+                if (isLandscape) {
+                    minimumWidth = dp(64f)
+                } else {
+                    minimumHeight = dp(62f)
                 }
+                addView(
+                    scrollView,
+                    LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        if (isLandscape) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
+                )
             }
 
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -2606,6 +2801,10 @@ class EditorActivity : Activity() {
     }
 
     private fun applyToolSelection(t: Tool) {
+        if (t != activeTool) {
+            previousTool = activeTool
+            if (t != Tool.ERASER) eraserReturnTool = null
+        }
         activeTool = t
         activeColor = getColorForTool(t)
         activeStrokeWidth = getWidthForTool(t)
@@ -2629,6 +2828,17 @@ class EditorActivity : Activity() {
             }
         }
         syncToolDots()
+        toolButtons[t]?.let { btn ->
+            btn.post {
+                if (!btn.isAttachedToWindow || btn.width <= 0 || btn.height <= 0) return@post
+                val sv = toolScrollView ?: return@post
+                val rect = Rect(0, 0, btn.width, btn.height)
+                when (sv) {
+                    is HorizontalScrollView -> sv.requestChildRectangleOnScreen(btn, rect, false)
+                    is ScrollView -> sv.requestChildRectangleOnScreen(btn, rect, false)
+                }
+            }
+        }
         if (isTablet) {
             updateTabletSidePanel()
         }
@@ -2932,6 +3142,156 @@ class EditorActivity : Activity() {
         getSharedPreferences("tulis_prefs", MODE_PRIVATE).edit().putBoolean("snap_shapes", on).apply()
     }
 
+    private fun buildGestureRow(textSizeSp: Float, onClick: () -> Unit): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = dp(44f)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Gestur"
+            setOnClickListener { onClick() }
+        }
+        val label = TextView(this).apply {
+            text = "Gestur"
+            setTextColor(Palette.INK)
+            textSize = textSizeSp
+            typeface = Fonts.ui(context)
+        }
+        row.addView(label, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val badge = TextView(this).apply {
+            text = "Atur"
+            setTextColor(Palette.INK)
+            textSize = 15f
+            typeface = Fonts.ui(context)
+            gravity = Gravity.CENTER
+            background = SketchDrawable(fill = Palette.YELLOW, stroke = Palette.INK, variant = 3)
+            setPadding(dp(12f), dp(4f), dp(12f), dp(4f))
+        }
+        row.addView(badge, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        return row
+    }
+
+    private val swatchColors = listOf(
+        Palette.INK,
+        Palette.RED,
+        Palette.BLUE,
+        Palette.GREEN,
+        Palette.ORANGE,
+        Palette.PURPLE
+    )
+
+    private fun swatchColorName(c: Int): String = when (c) {
+        Palette.INK -> "Warna hitam"
+        Palette.RED -> "Warna merah"
+        Palette.BLUE -> "Warna biru"
+        Palette.GREEN -> "Warna hijau"
+        Palette.ORANGE -> "Warna oranye"
+        Palette.PURPLE -> "Warna ungu"
+        else -> "Warna"
+    }
+
+    private fun updateSwatchState(swatch: ColorSwatchView, selected: Boolean) {
+        swatch.isSelectedSwatch = selected
+        swatch.isSelected = selected
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            swatch.stateDescription = if (selected) "Dipilih" else "Tidak dipilih"
+        }
+    }
+
+    private fun buildColorSwatchRow(
+        selectedColor: Int,
+        onSelect: (Int, Map<Int, ColorSwatchView>) -> Unit
+    ): LinearLayout {
+        val colorRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4f), dp(4f), dp(4f), dp(8f))
+        }
+        val colorViews = mutableMapOf<Int, ColorSwatchView>()
+        for (c in swatchColors) {
+            val cBtn = ColorSwatchView(this).apply {
+                color = c
+                updateSwatchState(this, c == selectedColor)
+                contentDescription = swatchColorName(c)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    onSelect(c, colorViews)
+                }
+            }
+            colorViews[c] = cBtn
+            val cLp = LinearLayout.LayoutParams(dp(44f), dp(44f)).apply {
+                if (c != swatchColors.first()) marginStart = dp(12f)
+            }
+            colorRow.addView(cBtn, cLp)
+        }
+        return colorRow
+    }
+
+    private fun showSelectionColorPopover(anchorX: Float, anchorY: Float, current: Int) {
+        optionsPopup?.dismiss()
+
+        val cardView = PopoverCardView(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val padH = dp(14f)
+            val padTop = dp(12f)
+            val padBottom = dp(18f)
+            setPadding(padH, padTop, padH, padBottom)
+        }
+
+        var popupRef: PopupWindow? = null
+        val colorRow = buildColorSwatchRow(current) { c, _ ->
+            canvasView.recolorSelection(c)
+            popupRef?.dismiss()
+        }
+        val scrollRow = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(colorRow, ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        cardView.addView(scrollRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        val availableW = (rootLayout.width - dp(24f)).coerceAtLeast(dp(200f))
+        cardView.measure(
+            View.MeasureSpec.makeMeasureSpec(availableW, View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val targetW = cardView.measuredWidth.coerceAtMost(availableW)
+        val popH = cardView.measuredHeight
+
+        val popup = PopupWindow(
+            cardView,
+            targetW,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            true
+        ).apply {
+            isOutsideTouchable = true
+            setOnDismissListener {
+                optionsPopup = null
+            }
+        }
+        popupRef = popup
+        optionsPopup = popup
+
+        val rootLoc = IntArray(2)
+        rootLayout.getLocationOnScreen(rootLoc)
+        val canvasLoc = IntArray(2)
+        canvasView.getLocationOnScreen(canvasLoc)
+
+        val anchorScreenX = canvasLoc[0] + anchorX
+        val anchorScreenY = canvasLoc[1] + anchorY
+        val minLeft = rootLoc[0] + dp(12f)
+        val maxLeft = (rootLoc[0] + rootLayout.width - targetW - dp(12f)).coerceAtLeast(minLeft)
+        val popupLeft = (anchorScreenX - targetW * 0.5f).toInt().coerceIn(minLeft, maxLeft)
+        cardView.arrowCenterX = anchorScreenX - popupLeft
+
+        val minTop = rootLoc[1] + dp(8f)
+        val maxTop = (rootLoc[1] + rootLayout.height - popH - dp(8f)).coerceAtLeast(minTop)
+        val popupTop = (anchorScreenY.toInt() - dp(22f) - popH).coerceIn(minTop, maxTop)
+
+        popup.showAtLocation(rootLayout, Gravity.NO_GRAVITY, popupLeft, popupTop)
+    }
+
     private fun showToolOptionsPopover(anchor: View, t: Tool) {
         optionsPopup?.dismiss()
 
@@ -2959,68 +3319,15 @@ class EditorActivity : Activity() {
             bottomMargin = dp(6f)
         })
 
-        val colors = listOf(
-            Palette.INK,
-            Palette.RED,
-            Palette.BLUE,
-            Palette.GREEN,
-            Palette.ORANGE,
-            Palette.PURPLE
-        )
+        val colorRow = buildColorSwatchRow(getColorForTool(t)) { c, colorViews ->
+            setColorForTool(t, c)
+            activeColor = c
+            canvasView.colorArgb = c
+            syncToolDots()
 
-        val colorRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4f), dp(4f), dp(4f), dp(8f))
-        }
-
-        val colorViews = mutableMapOf<Int, View>()
-        val currentToolColor = getColorForTool(t)
-
-        for (c in colors) {
-            val cName = when (c) {
-                Palette.INK -> "Warna hitam"
-                Palette.RED -> "Warna merah"
-                Palette.BLUE -> "Warna biru"
-                Palette.GREEN -> "Warna hijau"
-                Palette.ORANGE -> "Warna oranye"
-                Palette.PURPLE -> "Warna ungu"
-                else -> "Warna"
+            for ((colorVal, swatch) in colorViews) {
+                updateSwatchState(swatch, colorVal == c)
             }
-            val cBtn = ColorSwatchView(this).apply {
-                color = c
-                isSelectedSwatch = c == currentToolColor
-                contentDescription = cName
-                isSelected = c == currentToolColor
-                if (android.os.Build.VERSION.SDK_INT >= 30) {
-                    stateDescription = if (c == currentToolColor) "Dipilih" else "Tidak dipilih"
-                }
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
-                    setColorForTool(t, c)
-                    activeColor = c
-                    canvasView.colorArgb = c
-                    syncToolDots()
-
-                    for ((colorVal, btn) in colorViews) {
-                        val isSel = colorVal == c
-                        (btn as? ColorSwatchView)?.let { swatch ->
-                            swatch.isSelectedSwatch = isSel
-                            swatch.isSelected = isSel
-                            if (android.os.Build.VERSION.SDK_INT >= 30) {
-                                swatch.stateDescription = if (isSel) "Dipilih" else "Tidak dipilih"
-                            }
-                        }
-                    }
-                }
-            }
-            colorViews[c] = cBtn
-
-            val cLp = LinearLayout.LayoutParams(dp(44f), dp(44f)).apply {
-                if (c != colors.first()) marginStart = dp(12f)
-            }
-            colorRow.addView(cBtn, cLp)
         }
         cardView.addView(colorRow)
 
@@ -3144,6 +3451,13 @@ class EditorActivity : Activity() {
         switchRow.addView(switchBtn, LinearLayout.LayoutParams(dp(60f), dp(34f)))
         cardView.addView(switchRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             topMargin = dp(4f)
+        })
+
+        cardView.addView(buildGestureRow(19f) {
+            optionsPopup?.dismiss()
+            showGestureSettingsDialog(this) {}
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(8f)
         })
 
         val maxAllowedW = dp(520f)
@@ -3773,6 +4087,15 @@ class EditorActivity : Activity() {
                         }
                     }
                 }
+                if (!out) {
+                    for (img in p.images) {
+                        img.worldBounds(box)
+                        if (box.right > newW || box.bottom > newH) {
+                            out = true
+                            break
+                        }
+                    }
+                }
                 if (out) clipped++
                 scan(i + 1)
             }
@@ -3876,6 +4199,23 @@ class EditorActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_IMAGE) {
+            val uri = data?.data
+            if (resultCode != RESULT_OK || uri == null) return
+            Toast.makeText(this, "Memuat gambar…", Toast.LENGTH_SHORT).show()
+            repo.importImageAsync(notebookId, uri) { imp, err ->
+                if (isFinishing || isDestroyed) return@importImageAsync
+                if (imp != null) {
+                    applyToolSelection(Tool.SELECT)
+                    if (!canvasView.insertImage(imp.name, imp.width, imp.height)) {
+                        Toast.makeText(this, "Gagal menyisipkan gambar", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(this, err ?: "Gagal memuat gambar", Toast.LENGTH_SHORT).show()
+                }
+            }
+            return
+        }
         if (requestCode != REQ_EXPORT && requestCode != REQ_EXPORT_DIR) return
         val opts = pendingExport
         pendingExport = null
@@ -3913,6 +4253,7 @@ class EditorActivity : Activity() {
                 val created = ArrayList<android.net.Uri>()
                 var error: String? = null
                 try {
+                    val images = ImageStore.provider(repo.imageDir(notebookId))
                     for ((n, idx) in indices.withIndex()) {
                         if (cancel.get()) throw io.github.fadhil_sabar.tulis.export.ExportCancelled()
                         mainHandler.post { if (alive()) progressDialog.update("Halaman ${n + 1} dari ${indices.size}") }
@@ -3927,7 +4268,14 @@ class EditorActivity : Activity() {
                         )
                         val out = contentResolver.openOutputStream(docUri, "w") ?: throw java.io.IOException("Tidak bisa menulis file")
                         out.use {
-                            Exporter.run(job, it, cancel, { p -> repo.loadPageSync(notebookId, p) }) { _, _ -> }
+                            Exporter.run(
+                                job,
+                                it,
+                                cancel,
+                                { p -> repo.loadPageSync(notebookId, p) },
+                                { _, _ -> },
+                                images = images
+                            )
                         }
                     }
                 } catch (e: io.github.fadhil_sabar.tulis.export.ExportCancelled) {
@@ -3980,10 +4328,16 @@ class EditorActivity : Activity() {
                 var error: String? = null
                 try {
                     val out = contentResolver.openOutputStream(uri, "w") ?: throw java.io.IOException("Tidak bisa menulis file")
+                    val images = ImageStore.provider(repo.imageDir(notebookId))
                     out.use {
-                        Exporter.run(job, it, cancel, { idx -> repo.loadPageSync(notebookId, idx) }) { n, total ->
-                            mainHandler.post { if (alive()) progressDialog.update("Halaman $n dari $total") }
-                        }
+                        Exporter.run(
+                            job,
+                            it,
+                            cancel,
+                            { idx -> repo.loadPageSync(notebookId, idx) },
+                            { n, total -> mainHandler.post { if (alive()) progressDialog.update("Halaman $n dari $total") } },
+                            images = images
+                        )
                     }
                 } catch (e: io.github.fadhil_sabar.tulis.export.ExportCancelled) {
                     error = ""
@@ -4118,6 +4472,110 @@ class EditorActivity : Activity() {
             }
     }
 
+    private fun performAction(a: TapAction) {
+        if (!::canvasView.isInitialized) return
+        when (a) {
+            TapAction.UNDO -> {
+                canvasView.undo()
+                updateUndoRedoState()
+            }
+            TapAction.REDO -> {
+                canvasView.redo()
+                updateUndoRedoState()
+            }
+            TapAction.TOGGLE_ERASER -> {
+                if (activeTool == Tool.ERASER) {
+                    applyToolSelection(eraserReturnTool ?: previousTool ?: Tool.PEN)
+                } else {
+                    val back = activeTool
+                    applyToolSelection(Tool.ERASER)
+                    eraserReturnTool = back
+                }
+            }
+            TapAction.PREVIOUS_TOOL -> {
+                previousTool?.let { applyToolSelection(it) }
+            }
+            TapAction.TOOL_PEN -> applyToolSelection(Tool.PEN)
+            TapAction.TOOL_MARKER -> applyToolSelection(Tool.MARKER)
+            TapAction.TOOL_HIGHLIGHTER -> applyToolSelection(Tool.HIGHLIGHTER)
+            TapAction.TOOL_ERASER -> applyToolSelection(Tool.ERASER)
+            TapAction.TOOL_TEXT -> applyToolSelection(Tool.TEXT)
+            TapAction.TOOL_PAN -> applyToolSelection(Tool.PAN)
+            TapAction.TOOL_SHAPE -> applyToolSelection(Tool.SHAPE)
+            TapAction.TOOL_SELECT -> applyToolSelection(Tool.SELECT)
+            TapAction.NONE -> Unit
+        }
+    }
+
+    private fun handleStylusButtonMotionEvent(ev: MotionEvent): Boolean {
+        val actionMasked = ev.actionMasked
+        if (actionMasked != MotionEvent.ACTION_BUTTON_PRESS &&
+            actionMasked != MotionEvent.ACTION_BUTTON_RELEASE
+        ) {
+            return false
+        }
+        val forward = when (ev.actionButton) {
+            MotionEvent.BUTTON_BACK,
+            MotionEvent.BUTTON_STYLUS_SECONDARY -> false
+            MotionEvent.BUTTON_FORWARD -> true
+            else -> return false
+        }
+        val action = UiPrefs.stylusAction(this, forward)
+        if (action == TapAction.NONE) return false
+        if (actionMasked == MotionEvent.ACTION_BUTTON_PRESS) {
+            performAction(action)
+        }
+        return true
+    }
+
+    private fun isStylusKeyEvent(event: KeyEvent): Boolean {
+        if (event.isFromSource(InputDevice.SOURCE_STYLUS) ||
+            event.isFromSource(InputDevice.SOURCE_BLUETOOTH_STYLUS)
+        ) {
+            return true
+        }
+        val dev = event.device ?: return false
+        return dev.supportsSource(InputDevice.SOURCE_STYLUS) ||
+            dev.supportsSource(InputDevice.SOURCE_BLUETOOTH_STYLUS)
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (handleStylusButtonMotionEvent(ev)) return true
+        return super.dispatchTouchEvent(ev)
+    }
+
+    override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean {
+        if (handleStylusButtonMotionEvent(ev)) return true
+        return super.dispatchGenericMotionEvent(ev)
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val forward = when (event.keyCode) {
+            KeyEvent.KEYCODE_BACK,
+            KeyEvent.KEYCODE_PAGE_UP,
+            KeyEvent.KEYCODE_STYLUS_BUTTON_SECONDARY -> false
+            KeyEvent.KEYCODE_FORWARD,
+            KeyEvent.KEYCODE_PAGE_DOWN,
+            KeyEvent.KEYCODE_STYLUS_BUTTON_TERTIARY -> true
+            else -> null
+        }
+        if (forward != null && isStylusKeyEvent(event)) {
+            val action = UiPrefs.stylusAction(this, forward)
+            if (action != TapAction.NONE) {
+                when (event.action) {
+                    KeyEvent.ACTION_DOWN -> {
+                        if (event.repeatCount == 0) {
+                            performAction(action)
+                        }
+                        return true
+                    }
+                    KeyEvent.ACTION_UP -> return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onBackPressed() {
         flushAutosave(immediateThumb = true)
         super.onBackPressed()
@@ -4128,6 +4586,13 @@ class EditorActivity : Activity() {
         flushAutosave(immediateThumb = true)
         repo.flush()
         if (notebookId.isNotEmpty()) io.github.fadhil_sabar.tulis.storage.VaultSync.get(this).requestSync(listOf(notebookId))
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= TRIM_MEMORY_RUNNING_LOW || level == TRIM_MEMORY_UI_HIDDEN) {
+            ImageCache.trim()
+        }
     }
 
     override fun onDestroy() {

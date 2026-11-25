@@ -3,12 +3,15 @@ package io.github.fadhil_sabar.tulis.ui
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import io.github.fadhil_sabar.tulis.canvas.NoteCanvasView
+import io.github.fadhil_sabar.tulis.model.ImageDraw
+import io.github.fadhil_sabar.tulis.model.ImageProvider
 import io.github.fadhil_sabar.tulis.model.PageContent
 import kotlin.math.abs
 import kotlin.math.max
@@ -20,6 +23,15 @@ class MinimapView @JvmOverloads constructor(
 ) : View(context, attrs, defStyleAttr) {
 
     var canvasView: NoteCanvasView? = null
+
+    var imageProvider: ImageProvider? = null
+        set(value) {
+            if (field !== value) {
+                field = value
+                lastRevision = -1
+                refresh()
+            }
+        }
 
     private val bgDrawable = SketchDrawable(
         fill = Palette.CARD,
@@ -63,6 +75,21 @@ class MinimapView @JvmOverloads constructor(
         color = Palette.INK_SOFT
     }
 
+    private val imagePaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val imagePlaceholderPaint = Paint()
+    private val worldToBitmapMatrix = Matrix()
+    private val tmpMatrix = Matrix()
+    private val pendingImageNames = ArrayList<String>()
+    private val pendingImageSides = ArrayList<Int>()
+    private val trackingProvider = ImageProvider { name, maxSidePx ->
+        val bmp = imageProvider?.bitmap(name, maxSidePx)
+        if (bmp == null) {
+            pendingImageNames.add(name)
+            pendingImageSides.add(maxSidePx)
+        }
+        bmp
+    }
+
     private var cachedBitmap: Bitmap? = null
     private var cachedCanvas: Canvas? = null
     private var lastRevision = -1
@@ -88,10 +115,22 @@ class MinimapView @JvmOverloads constructor(
 
         val page = cv.getPage()
         val currentRev = page?.revision ?: 0
-        val needsRedraw = cachedBitmap == null ||
+        var needsRedraw = cachedBitmap == null ||
                 page !== lastPage ||
                 currentRev != lastRevision ||
                 hasWorldBoundsChangedSignificantly(cachedWorldMapRect, worldMapRect)
+
+        if (!needsRedraw && pendingImageNames.isNotEmpty()) {
+            val provider = imageProvider
+            if (provider != null) {
+                for (i in 0 until pendingImageNames.size) {
+                    if (provider.bitmap(pendingImageNames[i], pendingImageSides[i]) != null) {
+                        needsRedraw = true
+                        break
+                    }
+                }
+            }
+        }
 
         if (needsRedraw) {
             updateCachedBitmap(cv, mapW.toInt(), mapH.toInt(), worldMapRect)
@@ -147,6 +186,20 @@ class MinimapView @JvmOverloads constructor(
                     contentBounds.union(strokeBounds)
                 }
             }
+            val images = page.images
+            val imageCount = images.size
+            for (i in 0 until imageCount) {
+                val img = images[i]
+                if (img.w > 0f && img.h > 0f) {
+                    img.worldBounds(strokeBounds)
+                    if (!hasContent) {
+                        contentBounds.set(strokeBounds)
+                        hasContent = true
+                    } else {
+                        contentBounds.union(strokeBounds)
+                    }
+                }
+            }
         }
 
         if (hasContent) {
@@ -174,10 +227,14 @@ class MinimapView @JvmOverloads constructor(
         val canvas = cachedCanvas ?: return
         bmp.eraseColor(0)
 
+        pendingImageNames.clear()
+        pendingImageSides.clear()
+
         val page = cv.getPage() ?: return
         val strokes = page.strokes
         val texts = page.texts
-        if (strokes.isEmpty() && texts.isEmpty()) return
+        val images = page.images
+        if (strokes.isEmpty() && texts.isEmpty() && images.isEmpty()) return
 
         val rw = max(1f, world.width())
         val rh = max(1f, world.height())
@@ -186,6 +243,22 @@ class MinimapView @JvmOverloads constructor(
         val scaledH = rh * scale
         val ox = (bmpW - scaledW) * 0.5f - world.left * scale
         val oy = (bmpH - scaledH) * 0.5f - world.top * scale
+
+        if (images.isNotEmpty()) {
+            worldToBitmapMatrix.setScale(scale, scale)
+            worldToBitmapMatrix.postTranslate(ox, oy)
+            val activeProvider = if (imageProvider != null) trackingProvider else null
+            ImageDraw.drawAll(
+                canvas,
+                images,
+                worldToBitmapMatrix,
+                scale,
+                activeProvider,
+                imagePaint,
+                imagePlaceholderPaint,
+                tmpMatrix
+            )
+        }
 
         val strokeCount = strokes.size
         val drawOnlyBounds = strokeCount > 3000

@@ -175,6 +175,9 @@ class MainActivity : Activity() {
             DialogAction("Tampilan", Palette.YELLOW, Palette.INK) {
                 io.github.fadhil_sabar.tulis.ui.showUiSettingsDialog(this) { recreate() }
             },
+            DialogAction("Gestur", Palette.YELLOW, Palette.INK) {
+                io.github.fadhil_sabar.tulis.ui.showGestureSettingsDialog(this) {}
+            },
             DialogAction(if (trashCount > 0) "Sampah ($trashCount)" else "Sampah", Palette.YELLOW, Palette.INK) {
                 startActivity(Intent(this, TrashActivity::class.java))
             },

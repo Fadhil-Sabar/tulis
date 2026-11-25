@@ -8,6 +8,7 @@ import androidx.ink.strokes.StrokeInput
 import io.github.fadhil_sabar.tulis.ink.InkBridge
 import io.github.fadhil_sabar.tulis.ink.StrokeItem
 import io.github.fadhil_sabar.tulis.model.BrushKind
+import io.github.fadhil_sabar.tulis.model.ImageItem
 import io.github.fadhil_sabar.tulis.model.PageContent
 import io.github.fadhil_sabar.tulis.model.TextItem
 import java.io.InputStream
@@ -15,7 +16,7 @@ import java.io.OutputStream
 
 object PageCodec {
     const val MAGIC = RawPageCodec.MAGIC
-    const val VERSION: Byte = RawPageCodec.VERSION_2
+    const val VERSION: Byte = RawPageCodec.VERSION_3
 
     fun mapToolTypeToByte(toolType: InputToolType?): Byte {
         return when (toolType) {
@@ -105,7 +106,18 @@ object PageCodec {
             )
         }
 
-        RawPageCodec.write(out, RawPage(rawStrokes, rawTexts))
+        val rawImages = page.images.map {
+            RawImage(
+                name = it.name,
+                cx = it.cx,
+                cy = it.cy,
+                w = it.w,
+                h = it.h,
+                rotationDeg = it.rotationDeg
+            )
+        }
+
+        RawPageCodec.write(out, RawPage(rawStrokes, rawTexts, rawImages))
     }
 
     fun read(input: InputStream): PageContent {
@@ -181,6 +193,19 @@ object PageCodec {
                     rawText.colorArgb,
                     rawText.widthWorld,
                     rawText.text
+                )
+            )
+        }
+
+        for (rawImage in rawPage.images) {
+            page.images.add(
+                ImageItem(
+                    rawImage.name,
+                    rawImage.cx,
+                    rawImage.cy,
+                    rawImage.w,
+                    rawImage.h,
+                    rawImage.rotationDeg
                 )
             )
         }

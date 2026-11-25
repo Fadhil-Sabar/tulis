@@ -9,23 +9,30 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import io.github.fadhil_sabar.tulis.ink.InkBridge
 import io.github.fadhil_sabar.tulis.ink.forEachInDrawOrder
+import io.github.fadhil_sabar.tulis.model.ImageDraw
+import io.github.fadhil_sabar.tulis.model.ImageProvider
 import io.github.fadhil_sabar.tulis.model.PageContent
 import io.github.fadhil_sabar.tulis.model.PaperStyle
 import io.github.fadhil_sabar.tulis.model.TextItem
 import io.github.fadhil_sabar.tulis.ui.Palette
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.hypot
 import kotlin.math.max
 
 class PageRenderer(
     private val paperStyle: PaperStyle,
     private val spacing: Float,
-    private val drawPaper: Boolean
+    private val drawPaper: Boolean,
+    private val images: ImageProvider? = null
 ) {
     private val strokeRenderer = InkBridge.createRenderer()
     private val tmp = Matrix()
+    private val matrixValues = FloatArray(9)
     private val boundsTmp = RectF()
     private val textPaint = TextPaint().apply { isAntiAlias = true }
+    private val imagePaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val imagePlaceholderPaint = Paint().apply { isAntiAlias = true }
 
     private val dotPaint = Paint().apply {
         style = Paint.Style.STROKE
@@ -63,7 +70,26 @@ class PageRenderer(
         drawContent(canvas, page, worldToDevice)
     }
 
+    private fun deviceScale(m: Matrix): Float {
+        m.getValues(matrixValues)
+        val s1 = hypot(matrixValues[Matrix.MSCALE_X], matrixValues[Matrix.MSKEW_Y])
+        val s2 = hypot(matrixValues[Matrix.MSKEW_X], matrixValues[Matrix.MSCALE_Y])
+        return max(s1, s2)
+    }
+
     private fun drawContent(canvas: Canvas, page: PageContent, worldToDevice: Matrix) {
+        if (page.images.isNotEmpty()) {
+            ImageDraw.drawAll(
+                canvas,
+                page.images,
+                worldToDevice,
+                deviceScale(worldToDevice),
+                images,
+                imagePaint,
+                imagePlaceholderPaint,
+                tmp
+            )
+        }
         forEachInDrawOrder(page.strokes) { stroke ->
             InkBridge.draw(strokeRenderer, canvas, stroke, worldToDevice, tmp)
         }
@@ -135,6 +161,12 @@ class PageRenderer(
 
     fun contentBounds(page: PageContent, out: RectF): Boolean {
         var has = false
+        for (img in page.images) {
+            if (img.w <= 0f || img.h <= 0f) continue
+            img.worldBounds(boundsTmp)
+            if (!has) out.set(boundsTmp) else out.union(boundsTmp)
+            has = true
+        }
         for (stroke in page.strokes) {
             if (stroke.worldBounds(boundsTmp)) {
                 if (!has) out.set(boundsTmp) else out.union(boundsTmp)

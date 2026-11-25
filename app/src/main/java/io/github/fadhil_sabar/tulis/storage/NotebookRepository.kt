@@ -2,11 +2,13 @@ package io.github.fadhil_sabar.tulis.storage
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import io.github.fadhil_sabar.tulis.ink.InkBridge
 import io.github.fadhil_sabar.tulis.ink.StrokeItem
 import io.github.fadhil_sabar.tulis.model.Folder
+import io.github.fadhil_sabar.tulis.model.ImageItem
 import io.github.fadhil_sabar.tulis.model.NoteMode
 import io.github.fadhil_sabar.tulis.model.NotebookMeta
 import io.github.fadhil_sabar.tulis.model.PageOrientation
@@ -44,6 +46,38 @@ class NotebookRepository(private val context: Context) {
 
     private fun notebookDir(id: String): File {
         return File(notebooksDir, id).apply { mkdirs() }
+    }
+
+    fun imageDir(id: String): File {
+        return File(notebooksDir, id)
+    }
+
+    fun importImageAsync(id: String, uri: Uri, cb: (ImageStore.Imported?, String?) -> Unit) {
+        executor.execute {
+            var imported: ImageStore.Imported? = null
+            var error: String? = null
+            try {
+                imported = ImageStore.importFromUri(context, uri, notebookDir(id))
+            } catch (t: Throwable) {
+                error = t.message?.takeIf { it.isNotBlank() } ?: "Gagal memuat gambar"
+            }
+            mainHandler.post {
+                cb(imported, error)
+            }
+        }
+    }
+
+    fun gcImagesAsync(id: String) {
+        executor.execute {
+            try {
+                val meta = parseMeta(metaFile(id)) ?: return@execute
+                val dir = imageDir(id)
+                if (!dir.isDirectory) return@execute
+                val refs = ImageRefs.referencedNames(dir, meta.pageCount) ?: return@execute
+                ImageRefs.gcOrphans(dir, refs, System.currentTimeMillis())
+            } catch (t: Throwable) {
+            }
+        }
     }
 
     private fun metaFile(id: String): File {
@@ -436,6 +470,14 @@ class NotebookRepository(private val context: Context) {
         }
     }
 
+    private fun copyImages(images: List<ImageItem>): List<ImageItem> {
+        val out = ArrayList<ImageItem>(images.size)
+        for (item in images) {
+            out.add(item.copy())
+        }
+        return out
+    }
+
     fun savePageAsync(id: String, index: Int, page: PageContent) {
         val strokeSnapshots = ArrayList<StrokeItem>(page.strokes.size)
         for (item in page.strokes) {
@@ -465,12 +507,14 @@ class NotebookRepository(private val context: Context) {
                 )
             )
         }
+        val imageSnapshots = copyImages(page.images)
 
         executor.execute {
             try {
                 val preparedPage = PageContent()
                 preparedPage.strokes.addAll(strokeSnapshots)
                 preparedPage.texts.addAll(textSnapshots)
+                preparedPage.images.addAll(imageSnapshots)
 
                 val target = pageFile(id, index)
                 atomicWriteFile(target) { fos ->
@@ -539,6 +583,7 @@ class NotebookRepository(private val context: Context) {
                 )
             )
         }
+        val imageSnapshots = copyImages(page.images)
 
         executor.execute {
             try {
@@ -559,6 +604,7 @@ class NotebookRepository(private val context: Context) {
                 val preparedPage = PageContent()
                 preparedPage.strokes.addAll(strokeSnapshots)
                 preparedPage.texts.addAll(textSnapshots)
+                preparedPage.images.addAll(imageSnapshots)
 
                 val target = pageFile(id, index)
                 atomicWriteFile(target) { fos ->

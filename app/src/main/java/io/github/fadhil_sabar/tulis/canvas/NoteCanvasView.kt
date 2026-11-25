@@ -16,6 +16,7 @@ import android.view.VelocityTracker
 import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import android.widget.OverScroller
+import androidx.ink.strokes.Stroke
 import androidx.input.motionprediction.MotionEventPredictor
 import io.github.fadhil_sabar.tulis.ink.InkBridge
 import io.github.fadhil_sabar.tulis.ink.InkStroke
@@ -24,6 +25,9 @@ import io.github.fadhil_sabar.tulis.ink.LiveInk
 import io.github.fadhil_sabar.tulis.ink.LiveInkListener
 import io.github.fadhil_sabar.tulis.ink.StrokeItem
 import io.github.fadhil_sabar.tulis.model.BrushKind
+import io.github.fadhil_sabar.tulis.model.ImageDraw
+import io.github.fadhil_sabar.tulis.model.ImageItem
+import io.github.fadhil_sabar.tulis.model.ImageProvider
 import io.github.fadhil_sabar.tulis.model.NoteMode
 import io.github.fadhil_sabar.tulis.model.PageContent
 import io.github.fadhil_sabar.tulis.model.PageStack
@@ -41,6 +45,7 @@ import io.github.fadhil_sabar.tulis.shape.SnapAdjust
 import io.github.fadhil_sabar.tulis.ui.Icon
 import io.github.fadhil_sabar.tulis.ui.Icons
 import io.github.fadhil_sabar.tulis.ui.Palette
+import java.io.File
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.hypot
@@ -105,6 +110,25 @@ class NoteCanvasView @JvmOverloads constructor(
     var fitWholePage: Boolean = false
     var shapeKind: ShapeKind = ShapeKind.RECT
     var snapShapes: Boolean = true
+    private var currentImageProvider: ImageProvider? = null
+    var imageDir: File? = null
+        set(value) {
+            field = value
+            val provider = value?.let { d ->
+                ImageProvider { n, m ->
+                    ImageCache.peek(d, n, m) {
+                        invalidatePages()
+                        invalidate()
+                        listener?.onViewportChanged()
+                    }
+                }
+            }
+            currentImageProvider = provider
+            canvasLayer.imageProvider = provider
+            invalidatePages()
+        }
+
+    fun imageProvider(): ImageProvider? = currentImageProvider
 
     val viewport: Viewport
 
@@ -188,6 +212,9 @@ class NoteCanvasView @JvmOverloads constructor(
     private val minShapeScale = 0.05f
     private val tmpBounds = FloatArray(4)
     private val shapeFrame = RectF()
+    private val shapeDeleteCenter = FloatArray(2)
+    private val shapeDeleteIconRect = RectF()
+    private var pendingShapeDeleteTap = false
     private val shapeRotateCenter = FloatArray(2)
     private val shapeRotateIconRect = RectF()
     private var shapeRotateOnLeft = false
@@ -213,14 +240,23 @@ class NoteCanvasView @JvmOverloads constructor(
     private var selPage: PageContent? = null
     private val selStrokes = ArrayList<StrokeItem>()
     private val selTexts = ArrayList<TextItem>()
+    private val selImages = ArrayList<ImageItem>()
     private val selScreenRect = RectF()
     private val tmpUnionRect = RectF()
     private val selDeleteCenter = FloatArray(2)
     private val selDeleteIconRect = RectF()
+    private val selDuplicateCenter = FloatArray(2)
+    private val selDuplicateIconRect = RectF()
+    private val selColorCenter = FloatArray(2)
     private val selRotateCenter = FloatArray(2)
     private val selRotateIconRect = RectF()
     private var selRotateOnLeft = false
     private var pendingDeleteTap = false
+    private var pendingDuplicateTap = false
+    private var pendingColorTap = false
+    private val colorBtnFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+    }
     private val deleteBtnVisualSizeDp = 36f
     private val deleteBtnIconSizeDp = 20f
     private val deleteBtnHitHalfDp = 20f
@@ -281,6 +317,8 @@ class NoteCanvasView @JvmOverloads constructor(
     private val origStrokes = ArrayList<Pair<Int, StrokeItem>>()
     private val origTexts = ArrayList<TextItem>()
     private val origTextXY = ArrayList<FloatArray>()
+    private val origImages = ArrayList<ImageItem>()
+    private val origImageStates = ArrayList<FloatArray>()
 
     private var lastReportedVisiblePage = -1
     private var lastReportedWindowFirst = -1
@@ -474,6 +512,7 @@ class NoteCanvasView @JvmOverloads constructor(
     fun commitPendingShape() {
         val p = pending ?: return
         pending = null
+        pendingShapeDeleteTap = false
         editRotateSnapKind = 0
         val item = StrokeItem(
             stroke = p.preview,
@@ -489,6 +528,7 @@ class NoteCanvasView @JvmOverloads constructor(
     private fun discardPendingShape() {
         if (pending == null) return
         pending = null
+        pendingShapeDeleteTap = false
         editRotateSnapKind = 0
         invalidate()
     }
@@ -601,6 +641,74 @@ class NoteCanvasView @JvmOverloads constructor(
         } else {
             canvasLayer.invalidate()
         }
+    }
+
+    fun insertImage(name: String, natW: Int, natH: Int): Boolean {
+        if (natW <= 0 || natH <= 0) return false
+        commitPendingShape()
+        clearSelection()
+        val s = canvasLayer.stack
+        val page: PageContent
+        val pageOffsetY: Float
+        if (s != null) {
+            val visIdx = visiblePageIndex()
+            page = s.get(visIdx) ?: return false
+            pageOffsetY = s.offsetY(visIdx)
+        } else {
+            page = canvasLayer.page ?: return false
+            pageOffsetY = 0f
+        }
+
+        val visLeft: Float
+        val visTop: Float
+        val visRight: Float
+        val visBottom: Float
+        if (width > 0 && height > 0) {
+            viewport.visibleWorld(width, height, tmpVisibleRect)
+            visLeft = tmpVisibleRect.left
+            visTop = tmpVisibleRect.top - pageOffsetY
+            visRight = tmpVisibleRect.right
+            visBottom = tmpVisibleRect.bottom - pageOffsetY
+        } else if (mode == NoteMode.PAGED) {
+            visLeft = 0f
+            visTop = 0f
+            visRight = canvasLayer.pageW
+            visBottom = canvasLayer.pageH
+        } else {
+            visLeft = -400f
+            visTop = -400f
+            visRight = 400f
+            visBottom = 400f
+        }
+
+        var maxW = (visRight - visLeft).coerceAtLeast(1f) * 0.6f
+        var maxH = (visBottom - visTop).coerceAtLeast(1f) * 0.6f
+        if (mode == NoteMode.PAGED) {
+            maxW = minOf(maxW, canvasLayer.pageW)
+            maxH = minOf(maxH, canvasLayer.pageH)
+        }
+        val scale = minOf(maxW / natW.toFloat(), maxH / natH.toFloat())
+        val w = (natW * scale).coerceAtLeast(1f)
+        val h = (natH * scale).coerceAtLeast(1f)
+
+        var cx = (visLeft + visRight) * 0.5f
+        var cy = (visTop + visBottom) * 0.5f
+        if (mode == NoteMode.PAGED) {
+            val hw = w * 0.5f
+            val hh = h * 0.5f
+            cx = cx.coerceIn(hw, (canvasLayer.pageW - hw).coerceAtLeast(hw))
+            cy = cy.coerceIn(hh, (canvasLayer.pageH - hh).coerceAtLeast(hh))
+        }
+
+        val item = ImageItem(name, cx, cy, w, h, 0f)
+        page.addImage(item)
+        selPage = page
+        selImages.add(item)
+        invalidatePages()
+        invalidate()
+        listener?.onContentChanged()
+        listener?.onHistoryChanged()
+        return true
     }
 
     private fun cancelLive(event: MotionEvent?, id: Any) {
@@ -766,7 +874,7 @@ class NoteCanvasView @JvmOverloads constructor(
         paint.color = Palette.INK
         canvas.drawRect(pageRect, paint)
 
-        if (page.strokes.isNotEmpty() || page.texts.isNotEmpty()) {
+        if (page.strokes.isNotEmpty() || page.texts.isNotEmpty() || page.images.isNotEmpty()) {
             val scale = sheetW / canvasLayer.pageW
             val drawMatrix = Matrix()
             drawMatrix.setScale(scale, scale)
@@ -774,21 +882,7 @@ class NoteCanvasView @JvmOverloads constructor(
 
             val saveCount = canvas.save()
             canvas.clipRect(pageRect)
-
-            val tempMat = Matrix()
-            forEachInDrawOrder(page.strokes) { stroke ->
-                InkBridge.draw(thumbnailRenderer, canvas, stroke, drawMatrix, tempMat)
-            }
-
-            paint.style = Paint.Style.FILL
-            for (text in page.texts) {
-                paint.color = text.colorArgb
-                paint.textSize = text.sizeWorld * scale
-                val tx = left + text.x * scale
-                val ty = top + text.y * scale + paint.textSize
-                canvas.drawText(text.text, tx, ty, paint)
-            }
-
+            drawPageContentToThumbnail(canvas, page, drawMatrix, scale, left, top, paint)
             canvas.restoreToCount(saveCount)
         }
 
@@ -821,7 +915,7 @@ class NoteCanvasView @JvmOverloads constructor(
             paint.color = Palette.INK
             canvas.drawRect(pageRect, paint)
 
-            if (p != null && (p.strokes.isNotEmpty() || p.texts.isNotEmpty())) {
+            if (p != null && (p.strokes.isNotEmpty() || p.texts.isNotEmpty() || p.images.isNotEmpty())) {
                 val scale = sheetW / canvasLayer.pageW
                 val drawMatrix = Matrix()
                 drawMatrix.setScale(scale, scale)
@@ -829,21 +923,7 @@ class NoteCanvasView @JvmOverloads constructor(
 
                 val saveCount = canvas.save()
                 canvas.clipRect(pageRect)
-
-                val tempMat = Matrix()
-                forEachInDrawOrder(p.strokes) { stroke ->
-                    InkBridge.draw(thumbnailRenderer, canvas, stroke, drawMatrix, tempMat)
-                }
-
-                paint.style = Paint.Style.FILL
-                for (text in p.texts) {
-                    paint.color = text.colorArgb
-                    paint.textSize = text.sizeWorld * scale
-                    val tx = left + text.x * scale
-                    val ty = top + text.y * scale + paint.textSize
-                    canvas.drawText(text.text, tx, ty, paint)
-                }
-
+                drawPageContentToThumbnail(canvas, p, drawMatrix, scale, left, top, paint)
                 canvas.restoreToCount(saveCount)
             }
         } else {
@@ -887,6 +967,15 @@ class NoteCanvasView @JvmOverloads constructor(
                         contentRect.union(bounds)
                     }
                 }
+                for (img in p.images) {
+                    img.worldBounds(bounds)
+                    if (!hasContent) {
+                        contentRect.set(bounds)
+                        hasContent = true
+                    } else {
+                        contentRect.union(bounds)
+                    }
+                }
 
                 if (hasContent) {
                     val rw = max(1f, contentRect.width())
@@ -905,24 +994,40 @@ class NoteCanvasView @JvmOverloads constructor(
                     drawMatrix.setScale(scale, scale)
                     drawMatrix.postTranslate(tx, ty)
 
-                    val tempMat = Matrix()
-                    forEachInDrawOrder(p.strokes) { stroke ->
-                        InkBridge.draw(thumbnailRenderer, canvas, stroke, drawMatrix, tempMat)
-                    }
-
-                    paint.style = Paint.Style.FILL
-                    for (text in p.texts) {
-                        paint.color = text.colorArgb
-                        paint.textSize = text.sizeWorld * scale
-                        val cx = text.x * scale + tx
-                        val cy = text.y * scale + ty + paint.textSize
-                        canvas.drawText(text.text, cx, cy, paint)
-                    }
+                    drawPageContentToThumbnail(canvas, p, drawMatrix, scale, tx, ty, paint)
                 }
             }
         }
 
         return bmp
+    }
+
+    private fun drawPageContentToThumbnail(
+        canvas: Canvas,
+        page: PageContent,
+        drawMatrix: Matrix,
+        scale: Float,
+        tx: Float,
+        ty: Float,
+        textPaint: Paint
+    ) {
+        val tempMat = Matrix()
+        if (page.images.isNotEmpty()) {
+            val imgPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+            val placeholderPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+            ImageDraw.drawAll(canvas, page.images, drawMatrix, scale, currentImageProvider, imgPaint, placeholderPaint, tempMat)
+        }
+        forEachInDrawOrder(page.strokes) { stroke ->
+            InkBridge.draw(thumbnailRenderer, canvas, stroke, drawMatrix, tempMat)
+        }
+        textPaint.style = Paint.Style.FILL
+        for (text in page.texts) {
+            textPaint.color = text.colorArgb
+            textPaint.textSize = text.sizeWorld * scale
+            val cx = tx + text.x * scale
+            val cy = ty + text.y * scale + textPaint.textSize
+            canvas.drawText(text.text, cx, cy, textPaint)
+        }
     }
 
     fun release() {
@@ -1204,10 +1309,12 @@ class NoteCanvasView @JvmOverloads constructor(
                             }
                             canvasLayer.setViewportGestureActive(false)
                             endGesture()
-                            if (triggeredCount == 2) {
-                                undo()
-                            } else {
-                                redo()
+                            if (listener?.onMultiFingerTap(triggeredCount) != true) {
+                                if (triggeredCount == 2) {
+                                    undo()
+                                } else {
+                                    redo()
+                                }
                             }
                             return true
                         }
@@ -1519,6 +1626,7 @@ class NoteCanvasView @JvmOverloads constructor(
     private fun beginEditGesture(x: Float, y: Float): Boolean {
         val p = pending ?: return false
         if (gestureState != GestureState.NONE) return false
+        pendingShapeDeleteTap = false
         val pad = p.sizePx / 2f + editPadDp * density
         p.spec.bounds(tmpBounds)
         val left = tmpBounds[0] - pad
@@ -1526,8 +1634,15 @@ class NoteCanvasView @JvmOverloads constructor(
         val right = tmpBounds[2] + pad
         val bottom = tmpBounds[3] + pad
         shapeFrame.set(left, top, right, bottom)
-        computeRotateButtonCenter(shapeFrame, false, shapeRotateCenter)
+        val below = computeDeleteButtonCenter(shapeFrame, shapeDeleteCenter)
+        computeRotateButtonCenter(shapeFrame, below, shapeRotateCenter)
         val btnHitHalf = deleteBtnHitHalfDp * density
+        if (abs(x - shapeDeleteCenter[0]) <= btnHitHalf && abs(y - shapeDeleteCenter[1]) <= btnHitHalf) {
+            pendingShapeDeleteTap = true
+            editDownX = x
+            editDownY = y
+            return true
+        }
         if (abs(x - shapeRotateCenter[0]) <= btnHitHalf && abs(y - shapeRotateCenter[1]) <= btnHitHalf) {
             editStartSpec = p.spec
             editStartRotated = p.rotated
@@ -1666,9 +1781,11 @@ class NoteCanvasView @JvmOverloads constructor(
         val pad = p.sizePx / 2f + editPadDp * density
         p.spec.bounds(tmpBounds)
         shapeFrame.set(tmpBounds[0] - pad, tmpBounds[1] - pad, tmpBounds[2] + pad, tmpBounds[3] + pad)
-        shapeRotateOnLeft = computeRotateButtonCenter(shapeFrame, false, shapeRotateCenter)
+        val below = computeDeleteButtonCenter(shapeFrame, shapeDeleteCenter)
+        shapeRotateOnLeft = computeRotateButtonCenter(shapeFrame, below, shapeRotateCenter)
         drawRotateConnector(canvas, shapeFrame, shapeRotateCenter, shapeRotateOnLeft)
         drawFrameWithCornerHandles(canvas, shapeFrame)
+        drawDeleteButton(canvas, shapeDeleteCenter, shapeDeleteIconRect)
         drawRotateButton(canvas, shapeRotateCenter, shapeRotateIconRect)
         if (gestureState == GestureState.SHAPE_EDIT_ROTATE && editRotateSnapKind == 2) {
             drawSnapGuideLine(canvas, shapeFrame, editAnchorX, editAnchorY, (editRotateBaseAngle ?: 0f) + editRotateLastDeg)
@@ -1700,6 +1817,9 @@ class NoteCanvasView @JvmOverloads constructor(
     private fun switchToPinch(event: MotionEvent) {
         hasUserMovedViewport = true
         pendingDeleteTap = false
+        pendingDuplicateTap = false
+        pendingColorTap = false
+        pendingShapeDeleteTap = false
         cancelHold()
         when (gestureState) {
             GestureState.SHAPE_HOLD, GestureState.SHAPE_DRAG -> discardPendingShape()
@@ -1862,7 +1982,18 @@ class NoteCanvasView @JvmOverloads constructor(
             }
 
             GestureState.NONE -> {
-                if (pendingDeleteTap) {
+                if (pendingShapeDeleteTap) {
+                    pendingShapeDeleteTap = false
+                    val pointerIndex = event.findPointerIndex(activePointerId)
+                    if (pointerIndex >= 0) {
+                        val sx = event.getX(pointerIndex)
+                        val sy = event.getY(pointerIndex)
+                        if (hypot((sx - editDownX).toDouble(), (sy - editDownY).toDouble()) <= touchSlop) {
+                            discardPendingShape()
+                            listener?.onHistoryChanged()
+                        }
+                    }
+                } else if (pendingDeleteTap) {
                     pendingDeleteTap = false
                     val pointerIndex = event.findPointerIndex(activePointerId)
                     if (pointerIndex >= 0) {
@@ -1870,6 +2001,32 @@ class NoteCanvasView @JvmOverloads constructor(
                         val sy = event.getY(pointerIndex)
                         if (hypot((sx - downTouchX).toDouble(), (sy - downTouchY).toDouble()) <= touchSlop) {
                             deleteSelection()
+                        }
+                    }
+                } else if (pendingDuplicateTap) {
+                    pendingDuplicateTap = false
+                    val pointerIndex = event.findPointerIndex(activePointerId)
+                    if (pointerIndex >= 0) {
+                        val sx = event.getX(pointerIndex)
+                        val sy = event.getY(pointerIndex)
+                        if (hypot((sx - downTouchX).toDouble(), (sy - downTouchY).toDouble()) <= touchSlop) {
+                            duplicateSelection()
+                        }
+                    }
+                } else if (pendingColorTap) {
+                    pendingColorTap = false
+                    val pointerIndex = event.findPointerIndex(activePointerId)
+                    if (pointerIndex >= 0) {
+                        val sx = event.getX(pointerIndex)
+                        val sy = event.getY(pointerIndex)
+                        if (hypot((sx - downTouchX).toDouble(), (sy - downTouchY).toDouble()) <= touchSlop) {
+                            if (hasColorableSelection()) {
+                                listener?.onRequestSelectionColor(
+                                    selColorCenter[0],
+                                    selColorCenter[1],
+                                    selectionPrimaryColor()
+                                )
+                            }
                         }
                     }
                 } else if (tool == Tool.TEXT) {
@@ -1951,6 +2108,9 @@ class NoteCanvasView @JvmOverloads constructor(
 
     private fun handleTouchCancel(event: MotionEvent) {
         pendingDeleteTap = false
+        pendingDuplicateTap = false
+        pendingColorTap = false
+        pendingShapeDeleteTap = false
         when (gestureState) {
             GestureState.DRAW -> {
                 motionPredictor.record(event)
@@ -1999,6 +2159,9 @@ class NoteCanvasView @JvmOverloads constructor(
     private fun endGesture() {
         tapCandidate = false
         pendingDeleteTap = false
+        pendingDuplicateTap = false
+        pendingColorTap = false
+        pendingShapeDeleteTap = false
         editRotateSnapKind = 0
         cancelHold()
         gestureState = GestureState.NONE
@@ -2098,11 +2261,23 @@ class NoteCanvasView @JvmOverloads constructor(
 
     private fun startSelectTouch(sx: Float, sy: Float, wx: Float, wy: Float) {
         pendingDeleteTap = false
-        val activePage = validateAndComputeSelectionOverlay(selScreenRect, selDeleteCenter, selRotateCenter)
+        pendingDuplicateTap = false
+        pendingColorTap = false
+        val activePage = validateAndComputeSelectionOverlay(selScreenRect, selDeleteCenter, selDuplicateCenter, selColorCenter, selRotateCenter)
         if (activePage != null) {
             val hitHalf = deleteBtnHitHalfDp * density
             if (abs(sx - selDeleteCenter[0]) <= hitHalf && abs(sy - selDeleteCenter[1]) <= hitHalf) {
                 pendingDeleteTap = true
+                gestureState = GestureState.NONE
+                return
+            }
+            if (abs(sx - selDuplicateCenter[0]) <= hitHalf && abs(sy - selDuplicateCenter[1]) <= hitHalf) {
+                pendingDuplicateTap = true
+                gestureState = GestureState.NONE
+                return
+            }
+            if (hasColorableSelection() && abs(sx - selColorCenter[0]) <= hitHalf && abs(sy - selColorCenter[1]) <= hitHalf) {
+                pendingColorTap = true
                 gestureState = GestureState.NONE
                 return
             }
@@ -2217,6 +2392,7 @@ class NoteCanvasView @JvmOverloads constructor(
         selPage = null
         selStrokes.clear()
         selTexts.clear()
+        selImages.clear()
 
         if (lassoMaxDist < touchSlop) {
             screenToWorld(sx, sy, tmpPoints)
@@ -2249,6 +2425,16 @@ class NoteCanvasView @JvmOverloads constructor(
                 if (hitStroke != null) {
                     selPage = page
                     selStrokes.add(hitStroke)
+                } else {
+                    val images = page.images
+                    for (i in images.indices.reversed()) {
+                        val img = images[i]
+                        if (img.hitTest(lx, ly)) {
+                            selPage = page
+                            selImages.add(img)
+                            break
+                        }
+                    }
                 }
             }
         } else {
@@ -2273,7 +2459,14 @@ class NoteCanvasView @JvmOverloads constructor(
                         selTexts.add(text)
                     }
                 }
-                if (selStrokes.isNotEmpty() || selTexts.isNotEmpty()) {
+                val images = page.images
+                for (i in 0 until images.size) {
+                    val img = images[i]
+                    if (Lasso.contains(poly, img.cx, img.cy)) {
+                        selImages.add(img)
+                    }
+                }
+                if (selStrokes.isNotEmpty() || selTexts.isNotEmpty() || selImages.isNotEmpty()) {
                     selPage = page
                 }
             }
@@ -2323,8 +2516,10 @@ class NoteCanvasView @JvmOverloads constructor(
         origStrokes.clear()
         origTexts.clear()
         origTextXY.clear()
+        origImages.clear()
+        origImageStates.clear()
 
-        val boxes = ArrayList<FloatArray>(selStrokes.size + selTexts.size)
+        val boxes = ArrayList<FloatArray>(selStrokes.size + selTexts.size + selImages.size)
         for (i in 0 until selStrokes.size) {
             val stroke = selStrokes[i]
             val idx = page.strokes.indexOf(stroke)
@@ -2347,6 +2542,15 @@ class NoteCanvasView @JvmOverloads constructor(
                     }
                 )
                 text.worldBounds(tmpRectF)
+                boxes.add(floatArrayOf(tmpRectF.left, tmpRectF.top, tmpRectF.right, tmpRectF.bottom))
+            }
+        }
+        for (i in 0 until selImages.size) {
+            val img = selImages[i]
+            if (page.images.contains(img)) {
+                origImages.add(img)
+                origImageStates.add(img.state())
+                img.worldBounds(tmpRectF)
                 boxes.add(floatArrayOf(tmpRectF.left, tmpRectF.top, tmpRectF.right, tmpRectF.bottom))
             }
         }
@@ -2403,18 +2607,22 @@ class NoteCanvasView @JvmOverloads constructor(
         rotateLastDeg = 0f
         rotateClampDx = 0f
         rotateClampDy = 0f
-        var totalPts = 0
-        for (i in 0 until origStrokes.size) {
-            totalPts += origStrokes[i].second.worldPoints().size
+        if (origStrokes.isEmpty() && origTexts.isEmpty() && origImages.isNotEmpty()) {
+            rotateBaseAngle = origImages[0].rotationDeg
+        } else {
+            var totalPts = 0
+            for (i in 0 until origStrokes.size) {
+                totalPts += origStrokes[i].second.worldPoints().size
+            }
+            val pts = FloatArray(totalPts)
+            var pos = 0
+            for (i in 0 until origStrokes.size) {
+                val wpts = origStrokes[i].second.worldPoints()
+                wpts.copyInto(pts, pos)
+                pos += wpts.size
+            }
+            rotateBaseAngle = SelectionMath.dominantAngle(pts)
         }
-        val pts = FloatArray(totalPts)
-        var pos = 0
-        for (i in 0 until origStrokes.size) {
-            val wpts = origStrokes[i].second.worldPoints()
-            wpts.copyInto(pts, pos)
-            pos += wpts.size
-        }
-        rotateBaseAngle = SelectionMath.dominantAngle(pts)
         rotateSnapKind = 0
         gestureState = GestureState.SELECT_ROTATE
     }
@@ -2497,6 +2705,12 @@ class NoteCanvasView @JvmOverloads constructor(
             t.x = xy[0] + dx
             t.y = xy[1] + dy
         }
+        for (i in 0 until origImages.size) {
+            val img = origImages[i]
+            val st = origImageStates[i]
+            img.cx = st[0] + dx
+            img.cy = st[1] + dy
+        }
         invalidatePageContent(page)
         invalidate()
     }
@@ -2541,8 +2755,22 @@ class NoteCanvasView @JvmOverloads constructor(
             t.sizeWorld = st[2] * scale
             t.widthWorld = st[3] * scale
         }
+        for (i in 0 until origImages.size) {
+            val img = origImages[i]
+            val st = origImageStates[i]
+            img.cx = resizeAnchorX + (st[0] - resizeAnchorX) * scale
+            img.cy = resizeAnchorY + (st[1] - resizeAnchorY) * scale
+            img.w = st[2] * scale
+            img.h = st[3] * scale
+        }
         invalidatePageContent(page)
         invalidate()
+    }
+
+    private fun normalizeDeg(deg: Float): Float {
+        var d = deg % 360f
+        if (d <= -180f) d += 360f else if (d > 180f) d -= 360f
+        return if (d == -0f) 0f else d
     }
 
     private fun updateSelectRotate(sx: Float, sy: Float) {
@@ -2598,6 +2826,14 @@ class NoteCanvasView @JvmOverloads constructor(
             t.x = xy[0]
             t.y = xy[1]
         }
+        for (i in 0 until origImages.size) {
+            val img = origImages[i]
+            val st = origImageStates[i]
+            val pt = SelectionMath.rotatePoint(st[0], st[1], rotateCenterX, rotateCenterY, deg)
+            img.cx = pt[0] + clampDx
+            img.cy = pt[1] + clampDy
+            img.rotationDeg = normalizeDeg(st[4] + deg)
+        }
         invalidatePageContent(page)
         invalidate()
     }
@@ -2620,6 +2856,8 @@ class NoteCanvasView @JvmOverloads constructor(
         val savedStrokes = ArrayList<Pair<Int, StrokeItem>>(origStrokes)
         val savedTexts = ArrayList<TextItem>(origTexts)
         val savedTextXY = ArrayList<FloatArray>(origTextXY)
+        val savedImages = ArrayList<ImageItem>(origImages)
+        val savedImageStates = ArrayList<FloatArray>(origImageStates)
 
         revertSelectionPreview()
 
@@ -2659,7 +2897,32 @@ class NoteCanvasView @JvmOverloads constructor(
             )
         }
 
-        page.replaceItems(oldStrokeList, newStrokeList, savedTexts, savedTextXY, newTextXY)
+        val newImageStates = ArrayList<FloatArray>(savedImages.size)
+        for (i in 0 until savedImageStates.size) {
+            val st = savedImageStates[i]
+            newImageStates.add(
+                when (editMode) {
+                    SelectionEditMode.MOVE -> floatArrayOf(st[0] + dx, st[1] + dy, st[2], st[3], st[4])
+                    SelectionEditMode.RESIZE -> floatArrayOf(
+                        ax + (st[0] - ax) * scale,
+                        ay + (st[1] - ay) * scale,
+                        st[2] * scale,
+                        st[3] * scale,
+                        st[4]
+                    )
+                    SelectionEditMode.ROTATE -> {
+                        val pt = SelectionMath.rotatePoint(st[0], st[1], ax, ay, deg)
+                        floatArrayOf(pt[0] + dx, pt[1] + dy, st[2], st[3], normalizeDeg(st[4] + deg))
+                    }
+                }
+            )
+        }
+
+        page.replaceItems(
+            oldStrokeList, newStrokeList,
+            savedTexts, savedTextXY, newTextXY,
+            savedImages, savedImageStates, newImageStates
+        )
 
         selStrokes.clear()
         for (i in 0 until newStrokeList.size) {
@@ -2673,7 +2936,13 @@ class NoteCanvasView @JvmOverloads constructor(
                 selTexts.add(savedTexts[i])
             }
         }
-        selPage = if (selStrokes.isEmpty() && selTexts.isEmpty()) null else page
+        selImages.clear()
+        for (i in 0 until savedImages.size) {
+            if (page.images.contains(savedImages[i])) {
+                selImages.add(savedImages[i])
+            }
+        }
+        selPage = if (selStrokes.isEmpty() && selTexts.isEmpty() && selImages.isEmpty()) null else page
 
         invalidatePageContent(page)
         invalidate()
@@ -2699,6 +2968,9 @@ class NoteCanvasView @JvmOverloads constructor(
                 t.widthWorld = st[3]
             }
         }
+        for (i in 0 until origImages.size) {
+            origImages[i].setState(origImageStates[i])
+        }
         if (moveStarted) {
             selStrokes.clear()
             for (i in 0 until origStrokes.size) {
@@ -2709,6 +2981,8 @@ class NoteCanvasView @JvmOverloads constructor(
         origStrokes.clear()
         origTexts.clear()
         origTextXY.clear()
+        origImages.clear()
+        origImageStates.clear()
         moveUnionBox = null
         movePage = null
         moveStarted = false
@@ -2722,48 +2996,160 @@ class NoteCanvasView @JvmOverloads constructor(
         rotateSnapKind = 0
     }
 
-    private fun deleteSelection() {
-        val page = selPage ?: return
-        val s = canvasLayer.stack
-        if (s != null) {
-            if (s.indexOf(page) < 0) {
-                clearSelection()
-                return
-            }
-        } else {
-            if (page !== canvasLayer.page) {
-                clearSelection()
-                return
-            }
-        }
+    private fun pruneSelection(page: PageContent): Boolean {
         for (i in selStrokes.indices.reversed()) {
             if (!page.strokes.contains(selStrokes[i])) selStrokes.removeAt(i)
         }
         for (i in selTexts.indices.reversed()) {
             if (!page.texts.contains(selTexts[i])) selTexts.removeAt(i)
         }
-        if (selStrokes.isEmpty() && selTexts.isEmpty()) {
+        for (i in selImages.indices.reversed()) {
+            if (!page.images.contains(selImages[i])) selImages.removeAt(i)
+        }
+        return selStrokes.isNotEmpty() || selTexts.isNotEmpty() || selImages.isNotEmpty()
+    }
+
+    private fun deleteSelection() {
+        val page = selPage ?: return
+        if (!isPageActive(page) || !pruneSelection(page)) {
             clearSelection()
             return
         }
-        page.removeItems(selStrokes, selTexts)
+        page.removeItems(selStrokes, selTexts, selImages)
         clearSelection()
         invalidatePageContent(page)
         listener?.onContentChanged()
         listener?.onHistoryChanged()
     }
 
+    private fun duplicateSelection() {
+        val page = selPage ?: return
+        if (!isPageActive(page) || !pruneSelection(page)) {
+            clearSelection()
+            return
+        }
+        val offset = 24f
+        var dx = offset
+        var dy = offset
+        if (canvasLayer.stack != null && computeSelectionWorldUnion(tmpUnionRect)) {
+            dx = when {
+                tmpUnionRect.right + offset <= canvasLayer.pageW -> offset
+                tmpUnionRect.left - offset >= 0f -> -offset
+                else -> 0f
+            }
+            dy = when {
+                tmpUnionRect.bottom + offset <= canvasLayer.pageH -> offset
+                tmpUnionRect.top - offset >= 0f -> -offset
+                else -> 0f
+            }
+        }
+        val newStrokes = ArrayList<StrokeItem>(selStrokes.size)
+        for (i in 0 until selStrokes.size) {
+            newStrokes.add(transformStroke(selStrokes[i], SelectionEditMode.MOVE, dx, dy, 1f, 0f, 0f, 0f))
+        }
+        val newTexts = ArrayList<TextItem>(selTexts.size)
+        for (i in 0 until selTexts.size) {
+            val t = selTexts[i]
+            newTexts.add(TextItem(t.x + dx, t.y + dy, t.sizeWorld, t.colorArgb, t.widthWorld, t.text))
+        }
+        val newImages = ArrayList<ImageItem>(selImages.size)
+        for (i in 0 until selImages.size) {
+            val copy = selImages[i].copy()
+            copy.cx += dx
+            copy.cy += dy
+            newImages.add(copy)
+        }
+        page.addItems(newStrokes, newTexts, newImages)
+        selStrokes.clear()
+        selStrokes.addAll(newStrokes)
+        selTexts.clear()
+        selTexts.addAll(newTexts)
+        selImages.clear()
+        selImages.addAll(newImages)
+        selPage = page
+        invalidatePageContent(page)
+        invalidate()
+        listener?.onContentChanged()
+        listener?.onHistoryChanged()
+    }
+
     private fun clearSelection() {
         revertSelectionPreview()
-        val hadSelection = selPage != null || selStrokes.isNotEmpty() || selTexts.isNotEmpty() || lassoCount > 0 || lassoPage != null
+        val hadSelection = selPage != null || selStrokes.isNotEmpty() || selTexts.isNotEmpty() || selImages.isNotEmpty() || lassoCount > 0 || lassoPage != null
         selPage = null
         selStrokes.clear()
         selTexts.clear()
+        selImages.clear()
         lassoPage = null
         lassoCount = 0
         lassoMaxDist = 0f
         pendingDeleteTap = false
+        pendingDuplicateTap = false
+        pendingColorTap = false
         if (hadSelection) invalidate()
+    }
+
+    fun hasColorableSelection(): Boolean =
+        selPage != null && (selStrokes.isNotEmpty() || selTexts.isNotEmpty())
+
+    private fun selectionPrimaryColor(): Int {
+        val raw = when {
+            selStrokes.isNotEmpty() -> selStrokes[0].colorArgb
+            selTexts.isNotEmpty() -> selTexts[0].colorArgb
+            else -> Palette.INK
+        }
+        return (raw and 0x00FFFFFF) or (0xFF shl 24)
+    }
+
+    private fun recolorStroke(orig: StrokeItem, argb: Int): StrokeItem {
+        val rgb = argb and 0x00FFFFFF
+        val newColor = if (orig.brushKind == BrushKind.HIGHLIGHTER) {
+            val origAlpha = (orig.colorArgb ushr 24) and 0xFF
+            if (origAlpha in 1..0xFE) rgb or (origAlpha shl 24) else rgb or (0xFF shl 24)
+        } else {
+            rgb or (0xFF shl 24)
+        }
+        if (orig.colorArgb == newColor) return orig
+        val brush = InkBridge.brushFor(orig.brushKind, newColor, orig.sizePx)
+        val stroke = Stroke(brush, orig.stroke.inputs)
+        return StrokeItem(
+            stroke = stroke,
+            brushKind = orig.brushKind,
+            colorArgb = newColor,
+            sizePx = orig.sizePx,
+            strokeToWorld = Matrix(orig.strokeToWorld),
+            encodedInputs = orig.encodedInputs
+        )
+    }
+
+    fun recolorSelection(argb: Int) {
+        val page = selPage ?: return
+        if (!isPageActive(page) || !pruneSelection(page)) {
+            clearSelection()
+            return
+        }
+        if (!hasColorableSelection()) return
+
+        val oldStrokes = ArrayList<StrokeItem>(selStrokes)
+        val newStrokes = ArrayList<StrokeItem>(selStrokes.size)
+        for (i in 0 until selStrokes.size) {
+            newStrokes.add(recolorStroke(selStrokes[i], argb))
+        }
+
+        val opaqueArgb = (argb and 0x00FFFFFF) or (0xFF shl 24)
+        val textColors = IntArray(selTexts.size) { opaqueArgb }
+
+        val revBefore = page.revision
+        page.recolorItems(oldStrokes, newStrokes, selTexts, textColors)
+
+        selStrokes.clear()
+        selStrokes.addAll(newStrokes)
+        if (page.revision != revBefore) {
+            invalidatePageContent(page)
+            invalidate()
+            listener?.onContentChanged()
+            listener?.onHistoryChanged()
+        }
     }
 
     private fun invalidatePageContent(page: PageContent) {
@@ -2774,9 +3160,41 @@ class NoteCanvasView @JvmOverloads constructor(
         }
     }
 
+    private fun includeRect(union: RectF, hasUnion: Boolean, r: RectF): Boolean {
+        if (!hasUnion) {
+            union.set(r)
+        } else {
+            if (r.left < union.left) union.left = r.left
+            if (r.top < union.top) union.top = r.top
+            if (r.right > union.right) union.right = r.right
+            if (r.bottom > union.bottom) union.bottom = r.bottom
+        }
+        return true
+    }
+
+    private fun computeSelectionWorldUnion(out: RectF): Boolean {
+        var hasUnion = false
+        for (i in 0 until selStrokes.size) {
+            if (selStrokes[i].worldBounds(tmpRectF)) {
+                hasUnion = includeRect(out, hasUnion, tmpRectF)
+            }
+        }
+        for (i in 0 until selTexts.size) {
+            selTexts[i].worldBounds(tmpRectF)
+            hasUnion = includeRect(out, hasUnion, tmpRectF)
+        }
+        for (i in 0 until selImages.size) {
+            selImages[i].worldBounds(tmpRectF)
+            hasUnion = includeRect(out, hasUnion, tmpRectF)
+        }
+        return hasUnion
+    }
+
     private fun validateAndComputeSelectionOverlay(
         outBox: RectF,
         outDeleteCenter: FloatArray,
+        outDuplicateCenter: FloatArray,
+        outColorCenter: FloatArray,
         outRotateCenter: FloatArray
     ): PageContent? {
         val page = selPage ?: return null
@@ -2788,6 +3206,7 @@ class NoteCanvasView @JvmOverloads constructor(
                 selPage = null
                 selStrokes.clear()
                 selTexts.clear()
+                selImages.clear()
                 return null
             }
             canvasLayer.pageToScreen(idx, pageToScreen)
@@ -2796,57 +3215,23 @@ class NoteCanvasView @JvmOverloads constructor(
                 selPage = null
                 selStrokes.clear()
                 selTexts.clear()
+                selImages.clear()
                 return null
             }
             pageToScreen.set(viewport.worldToScreen)
         }
 
-        for (i in selStrokes.indices.reversed()) {
-            if (!page.strokes.contains(selStrokes[i])) {
-                selStrokes.removeAt(i)
-            }
-        }
-        for (i in selTexts.indices.reversed()) {
-            if (!page.texts.contains(selTexts[i])) {
-                selTexts.removeAt(i)
-            }
-        }
-        if (selStrokes.isEmpty() && selTexts.isEmpty()) {
+        if (!pruneSelection(page)) {
             selPage = null
             return null
         }
 
-        var hasUnion = false
         val unionRect = tmpUnionRect
-        for (i in 0 until selStrokes.size) {
-            if (selStrokes[i].worldBounds(tmpRectF)) {
-                if (!hasUnion) {
-                    unionRect.set(tmpRectF)
-                    hasUnion = true
-                } else {
-                    if (tmpRectF.left < unionRect.left) unionRect.left = tmpRectF.left
-                    if (tmpRectF.top < unionRect.top) unionRect.top = tmpRectF.top
-                    if (tmpRectF.right > unionRect.right) unionRect.right = tmpRectF.right
-                    if (tmpRectF.bottom > unionRect.bottom) unionRect.bottom = tmpRectF.bottom
-                }
-            }
-        }
-        for (i in 0 until selTexts.size) {
-            selTexts[i].worldBounds(tmpRectF)
-            if (!hasUnion) {
-                unionRect.set(tmpRectF)
-                hasUnion = true
-            } else {
-                if (tmpRectF.left < unionRect.left) unionRect.left = tmpRectF.left
-                if (tmpRectF.top < unionRect.top) unionRect.top = tmpRectF.top
-                if (tmpRectF.right > unionRect.right) unionRect.right = tmpRectF.right
-                if (tmpRectF.bottom > unionRect.bottom) unionRect.bottom = tmpRectF.bottom
-            }
-        }
-        if (!hasUnion) {
+        if (!computeSelectionWorldUnion(unionRect)) {
             selPage = null
             selStrokes.clear()
             selTexts.clear()
+            selImages.clear()
             return null
         }
 
@@ -2854,33 +3239,90 @@ class NoteCanvasView @JvmOverloads constructor(
         val pad = editPadDp * density
         outBox.inset(-pad, -pad)
 
+        val colorCenter = if (hasColorableSelection()) outColorCenter else null
+        val deleteIsBelow = computeSelectionActionButtons(outBox, outDeleteCenter, outDuplicateCenter, colorCenter)
+        selRotateOnLeft = computeRotateButtonCenter(outBox, deleteIsBelow, outRotateCenter, outDeleteCenter, outDuplicateCenter, colorCenter)
+        return page
+    }
+
+    private fun computeDeleteButtonCenter(box: RectF, out: FloatArray): Boolean {
         val margin = 4f * density
         val halfBtn = deleteBtnVisualSizeDp * density / 2f
         val gap = deleteBtnGapDp * density
         val minX = halfBtn + margin
         val maxX = (width - halfBtn - margin).coerceAtLeast(minX)
-        val cx = outBox.centerX().coerceIn(minX, maxX)
-        val aboveY = outBox.top - gap - halfBtn
+        val cx = box.centerX().coerceIn(minX, maxX)
+        val aboveY = box.top - gap - halfBtn
         val deleteIsBelow = aboveY - halfBtn < margin
-        val preferredY = if (!deleteIsBelow) aboveY else outBox.bottom + gap + halfBtn
+        val preferredY = if (!deleteIsBelow) aboveY else box.bottom + gap + halfBtn
         val minY = halfBtn + margin
         val maxY = (height - halfBtn - margin).coerceAtLeast(minY)
         val cy = preferredY.coerceIn(minY, maxY)
-        outDeleteCenter[0] = cx
-        outDeleteCenter[1] = cy
+        out[0] = cx
+        out[1] = cy
+        return deleteIsBelow
+    }
 
-        selRotateOnLeft = computeRotateButtonCenter(outBox, deleteIsBelow, outRotateCenter)
-        return page
+    private fun computeSelectionActionButtons(
+        box: RectF,
+        outDelete: FloatArray,
+        outDuplicate: FloatArray,
+        outColor: FloatArray? = null
+    ): Boolean {
+        val margin = 4f * density
+        val halfBtn = deleteBtnVisualSizeDp * density / 2f
+        val gap = deleteBtnGapDp * density
+        val step = halfBtn * 2f + gap
+        val count = if (outColor != null) 3 else 2
+        val span = (count - 1) * step
+        val minX = halfBtn + margin
+        val maxX = (width - halfBtn - margin).coerceAtLeast(minX)
+        val firstMaxX = (maxX - span).coerceAtLeast(minX)
+        val firstCx = (box.centerX() - span * 0.5f).coerceIn(minX, firstMaxX)
+        val aboveY = box.top - gap - halfBtn
+        val isBelow = aboveY - halfBtn < margin
+        val preferredY = if (!isBelow) aboveY else box.bottom + gap + halfBtn
+        val minY = halfBtn + margin
+        val maxY = (height - halfBtn - margin).coerceAtLeast(minY)
+        val cy = preferredY.coerceIn(minY, maxY)
+        outDelete[0] = firstCx
+        outDelete[1] = cy
+        outDuplicate[0] = (firstCx + step).coerceAtMost(maxX)
+        outDuplicate[1] = cy
+        if (outColor != null) {
+            outColor[0] = (firstCx + 2f * step).coerceAtMost(maxX)
+            outColor[1] = cy
+        }
+        return isBelow
+    }
+
+    private fun overlapsButton(
+        cx: Float,
+        cy: Float,
+        minDist: Float,
+        a: FloatArray?,
+        b: FloatArray?,
+        c: FloatArray? = null
+    ): Boolean {
+        if (a != null && hypot((cx - a[0]).toDouble(), (cy - a[1]).toDouble()) < minDist) return true
+        if (b != null && hypot((cx - b[0]).toDouble(), (cy - b[1]).toDouble()) < minDist) return true
+        if (c != null && hypot((cx - c[0]).toDouble(), (cy - c[1]).toDouble()) < minDist) return true
+        return false
     }
 
     private fun computeRotateButtonCenter(
         box: RectF,
         avoidBelow: Boolean,
-        outCenter: FloatArray
+        outCenter: FloatArray,
+        avoidA: FloatArray? = null,
+        avoidB: FloatArray? = null,
+        avoidC: FloatArray? = null
     ): Boolean {
         val margin = 4f * density
         val halfBtn = deleteBtnVisualSizeDp * density / 2f
         val gap = deleteBtnGapDp * density
+        val step = halfBtn * 2f + gap
+        val minDist = step - 1f
         val minX = halfBtn + margin
         val maxX = (width - halfBtn - margin).coerceAtLeast(minX)
         val minY = halfBtn + margin
@@ -2893,8 +3335,44 @@ class NoteCanvasView @JvmOverloads constructor(
             return false
         }
         val leftX = box.left - gap - halfBtn
-        outCenter[0] = leftX.coerceIn(minX, maxX)
-        outCenter[1] = box.centerY().coerceIn(minY, maxY)
+        var rotX = leftX.coerceIn(minX, maxX)
+        var rotY = box.centerY().coerceIn(minY, maxY)
+        if (overlapsButton(rotX, rotY, minDist, avoidA, avoidB, avoidC)) {
+            val refY = avoidA?.get(1) ?: avoidB?.get(1) ?: avoidC?.get(1) ?: rotY
+            var maxAvoidX = Float.NEGATIVE_INFINITY
+            var minAvoidX = Float.POSITIVE_INFINITY
+            if (avoidA != null) {
+                maxAvoidX = maxOf(maxAvoidX, avoidA[0])
+                minAvoidX = minOf(minAvoidX, avoidA[0])
+            }
+            if (avoidB != null) {
+                maxAvoidX = maxOf(maxAvoidX, avoidB[0])
+                minAvoidX = minOf(minAvoidX, avoidB[0])
+            }
+            if (avoidC != null) {
+                maxAvoidX = maxOf(maxAvoidX, avoidC[0])
+                minAvoidX = minOf(minAvoidX, avoidC[0])
+            }
+            val candidates = floatArrayOf(
+                rotX, (refY - step).coerceIn(minY, maxY),
+                rotX, (refY + step).coerceIn(minY, maxY),
+                (minAvoidX - step).coerceIn(minX, maxX), refY,
+                (maxAvoidX + step).coerceIn(minX, maxX), refY
+            )
+            var i = 0
+            while (i < candidates.size) {
+                val cx = candidates[i]
+                val cy = candidates[i + 1]
+                if (!overlapsButton(cx, cy, minDist, avoidA, avoidB, avoidC)) {
+                    rotX = cx
+                    rotY = cy
+                    break
+                }
+                i += 2
+            }
+        }
+        outCenter[0] = rotX
+        outCenter[1] = rotY
         return true
     }
 
@@ -2923,15 +3401,45 @@ class NoteCanvasView @JvmOverloads constructor(
         }
     }
 
-    private fun drawRotateButton(canvas: Canvas, center: FloatArray, iconRect: RectF) {
-        val rotCx = center[0]
-        val rotCy = center[1]
+    private fun drawActionButton(
+        canvas: Canvas,
+        center: FloatArray,
+        iconRect: RectF,
+        icon: Icon,
+        iconPaint: Paint
+    ) {
+        val cx = center[0]
+        val cy = center[1]
         val btnRadius = deleteBtnVisualSizeDp * density / 2f
         val iconHalf = deleteBtnIconSizeDp * density / 2f
-        canvas.drawCircle(rotCx, rotCy, btnRadius, handleFillPaint)
-        canvas.drawCircle(rotCx, rotCy, btnRadius, handleBorderPaint)
-        iconRect.set(rotCx - iconHalf, rotCy - iconHalf, rotCx + iconHalf, rotCy + iconHalf)
-        Icons.draw(canvas, Icon.ROTATE, iconRect, rotateBtnPaint)
+        canvas.drawCircle(cx, cy, btnRadius, handleFillPaint)
+        canvas.drawCircle(cx, cy, btnRadius, handleBorderPaint)
+        iconRect.set(cx - iconHalf, cy - iconHalf, cx + iconHalf, cy + iconHalf)
+        Icons.draw(canvas, icon, iconRect, iconPaint)
+    }
+
+    private fun drawDeleteButton(canvas: Canvas, center: FloatArray, iconRect: RectF) {
+        drawActionButton(canvas, center, iconRect, Icon.TRASH, deleteBtnPaint)
+    }
+
+    private fun drawDuplicateButton(canvas: Canvas, center: FloatArray, iconRect: RectF) {
+        drawActionButton(canvas, center, iconRect, Icon.DUPLICATE, rotateBtnPaint)
+    }
+
+    private fun drawColorButton(canvas: Canvas, center: FloatArray, color: Int) {
+        val cx = center[0]
+        val cy = center[1]
+        val btnRadius = deleteBtnVisualSizeDp * density / 2f
+        val dotRadius = deleteBtnIconSizeDp * density / 2f
+        canvas.drawCircle(cx, cy, btnRadius, handleFillPaint)
+        canvas.drawCircle(cx, cy, btnRadius, handleBorderPaint)
+        colorBtnFillPaint.color = color
+        canvas.drawCircle(cx, cy, dotRadius, colorBtnFillPaint)
+        canvas.drawCircle(cx, cy, dotRadius, rotateBtnPaint)
+    }
+
+    private fun drawRotateButton(canvas: Canvas, center: FloatArray, iconRect: RectF) {
+        drawActionButton(canvas, center, iconRect, Icon.ROTATE, rotateBtnPaint)
     }
 
     private fun drawSnapGuideLine(canvas: Canvas, box: RectF, cx: Float, cy: Float, totalDeg: Float) {
@@ -2945,18 +3453,14 @@ class NoteCanvasView @JvmOverloads constructor(
     }
 
     private fun drawSelectionOverlay(canvas: Canvas) {
-        validateAndComputeSelectionOverlay(selScreenRect, selDeleteCenter, selRotateCenter) ?: return
+        validateAndComputeSelectionOverlay(selScreenRect, selDeleteCenter, selDuplicateCenter, selColorCenter, selRotateCenter) ?: return
         drawRotateConnector(canvas, selScreenRect, selRotateCenter, selRotateOnLeft)
         drawFrameWithCornerHandles(canvas, selScreenRect)
-        val btnCx = selDeleteCenter[0]
-        val btnCy = selDeleteCenter[1]
-        val btnRadius = deleteBtnVisualSizeDp * density / 2f
-        canvas.drawCircle(btnCx, btnCy, btnRadius, handleFillPaint)
-        canvas.drawCircle(btnCx, btnCy, btnRadius, handleBorderPaint)
-        val iconHalf = deleteBtnIconSizeDp * density / 2f
-        selDeleteIconRect.set(btnCx - iconHalf, btnCy - iconHalf, btnCx + iconHalf, btnCy + iconHalf)
-        Icons.draw(canvas, Icon.TRASH, selDeleteIconRect, deleteBtnPaint)
-
+        drawDeleteButton(canvas, selDeleteCenter, selDeleteIconRect)
+        drawDuplicateButton(canvas, selDuplicateCenter, selDuplicateIconRect)
+        if (hasColorableSelection()) {
+            drawColorButton(canvas, selColorCenter, selectionPrimaryColor())
+        }
         drawRotateButton(canvas, selRotateCenter, selRotateIconRect)
 
         if (gestureState == GestureState.SELECT_ROTATE && rotateSnapKind == 2) {
