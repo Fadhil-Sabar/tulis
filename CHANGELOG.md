@@ -4,6 +4,8 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-25
+
 ### Ditambahkan
 - Gestur ketuk 2 atau 3 jari dapat diatur (Urungkan, Ulangi, toggle penghapus, alat sebelumnya, atau alat tertentu) dari menu Gestur
 - Tombol hapus pada bentuk yang masih aktif
